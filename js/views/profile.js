@@ -1,6 +1,6 @@
 // Profil, objectifs, synchro et sauvegarde
 import { esc, icons, num, toast, plain, $ } from '../ui.js';
-import { getState, setGoals, exportData, importData, resetAll } from '../store.js';
+import { getState, setGoals, setProfile, exportData, importData, resetAll } from '../store.js';
 import { computeTargets, fmt } from '../nutrition.js';
 import * as drive from '../drive.js';
 
@@ -56,6 +56,11 @@ export function renderProfile(root, ui, nav) {
         ['objectif', LABELS.goal[p.goal] || '–'],
         ['appétit', LABELS.appetite[p.appetite] || '–'],
       ].map(([k, v]) => `<div class="kv"><span>${k}</span><span>${v}</span></div>`).join('')}
+      <div class="about-label">Ta journée type</div>
+      <div class="long-input compact"><textarea id="t-day" maxlength="280" placeholder="Raconte ta journée en quelques mots">${esc(p.dayText || '')}</textarea><span class="count">${(p.dayText || '').length} / 280</span></div>
+      <div class="about-label">Ton entraînement</div>
+      <div class="long-input compact"><textarea id="t-train" maxlength="280" placeholder="Décris tes séances, ta marche, ton activité">${esc(p.trainText || '')}</textarea><span class="count">${(p.trainText || '').length} / 280</span></div>
+      <button class="btn btn-ghost btn-sm" id="t-save" style="margin-top:10px;width:100%" hidden>enregistrer mes réponses</button>
       <button class="btn btn-outline" id="p-redo" style="margin-top:12px">refaire le questionnaire</button>
     </div>
 
@@ -85,6 +90,19 @@ export function renderProfile(root, ui, nav) {
 
   $('#p-back', root).onclick = () => nav.go('#/');
   $('#p-redo', root).onclick = () => nav.go('#/onboarding');
+
+  // Réponses écrites : modifiables à tout moment
+  const tDay = $('#t-day', root), tTrain = $('#t-train', root), tSave = $('#t-save', root);
+  [tDay, tTrain].forEach((ta) => ta.addEventListener('input', () => {
+    ta.nextElementSibling.textContent = `${ta.value.length} / 280`;
+    tSave.hidden = false;
+  }));
+  tSave.onclick = () => {
+    if (!st.profile) return;
+    setProfile({ ...st.profile, dayText: tDay.value.trim(), trainText: tTrain.value.trim() });
+    tSave.hidden = true;
+    toast('réponses enregistrées ✦');
+  };
 
   const gi = (id) => num($('#' + id, root).value);
   const check = () => {

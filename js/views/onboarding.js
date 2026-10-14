@@ -35,6 +35,12 @@ const STEPS = [
     ],
   },
   {
+    key: 'dayText', kind: 'longtext', optional: true, max: 280,
+    title: () => 'raconte ta journée type',
+    sub: 'En quelques mots : ton taf ou tes cours, tes trajets, tes horaires, quand tu manges…',
+    placeholder: 'ex : étudiant, en cours assis de 9h à 17h, 20 min de marche pour y aller, je bosse debout au resto le samedi',
+  },
+  {
     key: 'trainFreq', kind: 'choice',
     title: () => 'tu t\'entraînes combien de fois par semaine ?',
     options: [
@@ -54,6 +60,12 @@ const STEPS = [
       { v: 'sportco', em: '⚽', t: 'Sport co ou combat' },
       { v: 'autre', em: '🧘', t: 'Autre', s: 'natation, danse, escalade…' },
     ],
+  },
+  {
+    key: 'trainText', kind: 'longtext', optional: true, max: 280,
+    title: () => a.trainFreq === 0 ? 'tu bouges autrement ?' : 'décris ton entraînement',
+    sub: () => a.trainFreq === 0 ? 'Marche, vélo, escaliers, ménage… tout compte.' : 'Type de séances, durée, intensité, nombre de pas par jour…',
+    placeholder: () => a.trainFreq === 0 ? 'ex : je marche 30 min par jour, vélo pour aller au taf' : 'ex : muscu 4x/semaine 1h15 en push/pull/legs, foot le dimanche, environ 8 000 pas par jour',
   },
   {
     key: 'goal', kind: 'choice',
@@ -103,7 +115,13 @@ export function renderOnboarding(root, done) {
   let body = '';
   if (st.kind === 'result') body = resultHtml();
   else {
-    body = `<h1>${plain(st.title())}</h1>${st.sub ? `<p class="ob-sub">${st.sub}</p>` : ''}`;
+    const sub = typeof st.sub === 'function' ? st.sub() : st.sub;
+    body = `<h1>${plain(st.title())}</h1>${sub ? `<p class="ob-sub">${sub}</p>` : ''}`;
+    if (st.kind === 'longtext') {
+      const ph = typeof st.placeholder === 'function' ? st.placeholder() : st.placeholder;
+      const v = a[st.key] || '';
+      body += `<div class="long-input"><textarea id="ob-in" maxlength="${st.max}" rows="5" placeholder="${esc(ph)}">${esc(v)}</textarea><span class="count" id="ob-count">${v.length} / ${st.max}</span></div>`;
+    }
     if (st.kind === 'text') body += `<div class="big-input"><input class="text" id="ob-in" type="text" autocomplete="given-name" placeholder="${esc(st.placeholder)}" value="${esc(a[st.key] || '')}" maxlength="30" /></div>`;
     if (st.kind === 'number') body += `<div class="big-input"><input id="ob-in" type="text" inputmode="${st.decimal ? 'decimal' : 'numeric'}" placeholder="0" value="${esc(a[st.key] ?? '')}" /><span>${st.unit}</span></div>`;
     if (st.kind === 'choice' || st.kind === 'multi') {
@@ -139,8 +157,9 @@ export function renderOnboarding(root, done) {
   const input = $('#ob-in', root);
   if (input) {
     setTimeout(() => input.focus(), 250);
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#ob-next', root)?.click(); });
+    if (st.kind !== 'longtext') input.addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#ob-next', root)?.click(); });
     if (st.optional) input.addEventListener('input', () => { $('#ob-next', root).textContent = input.value.trim() ? 'continuer' : 'passer'; });
+    if (st.kind === 'longtext') input.addEventListener('input', () => { $('#ob-count', root).textContent = `${input.value.length} / ${st.max}`; });
   }
 
   root.querySelectorAll('.option').forEach((b) => {
@@ -161,7 +180,7 @@ export function renderOnboarding(root, done) {
 
   const next = $('#ob-next', root);
   if (next) next.onclick = () => {
-    if (st.kind === 'text') { a[st.key] = input.value.trim(); return go(1); }
+    if (st.kind === 'text' || st.kind === 'longtext') { a[st.key] = input.value.trim().slice(0, st.max || 60); return go(1); }
     if (st.kind === 'number') {
       const v = num(input.value);
       if (v == null || v < st.min || v > st.max) { input.parentElement.animate([{ transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'none' }], { duration: 250 }); return; }
