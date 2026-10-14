@@ -9,7 +9,6 @@ import { openFoodSheet, openNotFoundSheet, openCustomFoodSheet } from '../sheets
 let scanner = null;
 let offCtrl = null;
 let typingTimer = null;
-let offTimer = null;
 
 export function stopScanner() {
   scanner?.stop();
@@ -59,7 +58,7 @@ export function renderAdd(root, ui, nav) {
     stopScanner();
     openFoodSheet({
       food, meal: ui.addMeal, date: ui.date,
-      onDone: () => nav.go('#/'),
+      onDone: () => { ui.justAdded = true; nav.go('#/'); },
       onCancel: () => resume?.(),
     });
   };
@@ -151,10 +150,12 @@ export function renderAdd(root, ui, nav) {
       res.innerHTML = `
         ${mine.length ? `<div class="list-title">dans tes aliments</div><div class="card" style="padding:4px 16px">${mine.map((f, i) => resultRow(f, i, 'mine')).join('')}</div>` : ''}
         <div class="list-title"><span>produits du commerce</span>${offState.loading ? '<span class="loader"></span>' : ''}</div>
-        <div class="card" style="padding:4px 16px">${offState.q === nq && offState.items.length ? offState.items.map((f, i) => resultRow(f, i, 'off')).join('') : `<p class="small muted" style="margin:12px 0">${offState.loading ? 'recherche dans Open Food Facts…' : offState.error ? 'Open Food Facts ne répond pas. Réessaie dans un instant.' : offState.q === nq ? 'Aucun produit trouvé. Essaie le scan, c\'est plus fiable.' : 'Appuie sur Rechercher pour chercher dans les produits.'}</p>`}</div>
+        <div class="card" style="padding:4px 16px">${offState.q === nq && offState.items.length ? offState.items.map((f, i) => resultRow(f, i, 'off')).join('') : `<p class="small muted" style="margin:12px 0">${offState.loading ? 'recherche dans Open Food Facts…' : offState.error ? 'Open Food Facts limite le nombre de recherches : attends une minute, ou scanne le produit (le scan n\'est pas limité).' : offState.q === nq ? 'Aucun produit trouvé. Essaie le scan, c\'est plus fiable.' : '<button class="add-pill" id="off-go">chercher dans les produits</button>'}</p>`}</div>
         <div class="list-title">aliments bruts · ciqual</div>
         <div class="card" style="padding:4px 16px">${raw.length ? raw.map((f, i) => resultRow(f, i, 'raw')).join('') : '<p class="small muted" style="margin:12px 0">Rien trouvé.</p>'}</div>`;
       bindResults(res);
+      const go = $('#off-go', res);
+      if (go) go.onclick = () => runOFF(input.value);
     };
 
     const runOFF = async (q) => {
@@ -176,14 +177,13 @@ export function renderAdd(root, ui, nav) {
 
     input.addEventListener('input', () => {
       ui.query = input.value;
-      clearTimeout(typingTimer); clearTimeout(offTimer);
+      clearTimeout(typingTimer);
+      // Open Food Facts limite les recherches (~10/min) : on ne l'interroge qu'à la validation
       typingTimer = setTimeout(() => draw(input.value), 120);
-      offTimer = setTimeout(() => runOFF(input.value), 1200);
     });
-    $('#s-form', body).onsubmit = (e) => { e.preventDefault(); input.blur(); clearTimeout(offTimer); runOFF(input.value); };
+    $('#s-form', body).onsubmit = (e) => { e.preventDefault(); input.blur(); runOFF(input.value); };
     loadCiqual().then(() => draw(input.value));
     if (!ui.query) setTimeout(() => input.focus(), 200);
-    else runOFF(ui.query);
     return;
   }
 

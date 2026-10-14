@@ -2,6 +2,10 @@
 import { esc, icons, dayLabel, addDays, dateStr, plain, $ } from '../ui.js';
 import { MEALS, entriesFor, getState } from '../store.js';
 import { totals, scale, fmt, fmtSmart, NUTRIENTS, MICROS, references } from '../nutrition.js';
+import { starPath, burst } from '../fx.js';
+
+const STAR = starPath(1, 0.4);
+const HALO = starPath(1, 0.3);
 
 export function renderToday(root, ui, nav) {
   const st = getState();
@@ -10,7 +14,7 @@ export function renderToday(root, ui, nav) {
   const { t, known, count } = totals(entries);
   const left = Math.round(g.kcal - t.kcal);
   const pct = Math.min(1, t.kcal / g.kcal);
-  const R = 58, C = 2 * Math.PI * R;
+  const over = left < 0;
   const isToday = ui.date === dateStr();
 
   const macro = (k, cls, label) => {
@@ -59,17 +63,29 @@ export function renderToday(root, ui, nav) {
       <button class="icon-btn" id="go-profile" aria-label="Profil">${icons.user}</button>
     </header>
 
-    <div class="card hero section">
-      <div class="ring ${left < 0 ? 'over' : ''}">
-        <svg viewBox="0 0 132 132"><circle class="track" cx="66" cy="66" r="${R}" fill="none" stroke-width="11"/><circle class="bar" cx="66" cy="66" r="${R}" fill="none" stroke-width="11" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - pct)}"/></svg>
-        <div class="ring-center"><div class="big">${fmt(Math.abs(left))}</div><div class="lbl">${left >= 0 ? 'kcal<br>restantes' : 'kcal<br>au-dessus'}</div></div>
+    <section class="hero-star section ${over ? 'over' : ''}" aria-label="${fmt(Math.abs(left))} kcal ${over ? 'au-dessus de ton objectif' : 'restantes'}">
+      <div class="star-wrap">
+        <svg class="halo" viewBox="-1 -1 2 2" aria-hidden="true"><path d="${HALO}"/></svg>
+        <svg class="star" viewBox="-1.02 -1.02 2.04 2.04" aria-hidden="true">
+          <defs>
+            <clipPath id="star-clip"><path d="${STAR}"/></clipPath>
+            <clipPath id="fill-clip"><path class="fill-mask" d="${STAR}" transform="scale(0)"/></clipPath>
+          </defs>
+          <path class="star-track" d="${STAR}"/>
+          <path class="star-fill" d="${STAR}" transform="scale(0)"/>
+          <text class="star-num" x="0" y="0.12" text-anchor="middle">${fmt(Math.abs(left)).replace(/\s/g, ' ')}</text>
+          <g clip-path="url(#fill-clip)">
+            <text class="star-num on" x="0" y="0.12" text-anchor="middle">${fmt(Math.abs(left)).replace(/\s/g, ' ')}</text>
+          </g>
+        </svg>
       </div>
-      <div class="hero-stats">
-        <div><div class="stat-line"><span>objectif</span><b>${fmt(g.kcal)}</b></div></div>
-        <div><div class="stat-line"><span>mangé</span><b>${fmt(t.kcal)}</b></div></div>
-        <div><div class="stat-line"><span>fibres</span><b>${fmt(t.fiber)} / ${fmt(g.fiber || 30)} g</b></div></div>
+      <div class="star-label">${over ? 'kcal au-dessus de ton objectif' : 'kcal restantes'}</div>
+      <div class="star-stats">
+        <div><b>${fmt(t.kcal)}</b><span>mangées</span></div>
+        <div><b>${fmt(g.kcal)}</b><span>objectif</span></div>
+        <div><b>${fmt(t.fiber)}<small> / ${fmt(g.fiber || 30)} g</small></b><span>fibres</span></div>
       </div>
-    </div>
+    </section>
 
     <div class="macros">
       ${macro('prot', '', 'protéines')}
@@ -95,6 +111,8 @@ export function renderToday(root, ui, nav) {
     <button class="fab" id="fab">${icons.barcode} scanner</button>
   `;
 
+  animateFill(root, ui, pct, over);
+
   $('#d-prev', root).onclick = () => { ui.date = addDays(ui.date, -1); nav.render(); };
   $('#d-next', root).onclick = () => { if (!isToday) { ui.date = addDays(ui.date, 1); nav.render(); } };
   $('#go-profile', root).onclick = () => nav.go('#/profile');
@@ -102,4 +120,30 @@ export function renderToday(root, ui, nav) {
   $('#fab', root).onclick = () => nav.openAdd(null, 'scan');
   root.querySelectorAll('[data-add]').forEach((b) => (b.onclick = () => nav.openAdd(b.dataset.add, 'search')));
   root.querySelectorAll('[data-entry]').forEach((b) => (b.onclick = () => nav.editEntry(b.dataset.entry)));
+}
+
+// L'étoile se remplit depuis son niveau précédent ; gerbe d'étoiles après un ajout
+function animateFill(root, ui, pct, over) {
+  const rects = root.querySelectorAll('.star-fill, .fill-mask');
+  const key = ui.date;
+  const from = ui.fillFrom?.date === key ? ui.fillFrom.pct : 0;
+  ui.fillFrom = { date: key, pct };
+  // l'étoile rouge grandit depuis le centre (surface proportionnelle aux calories)
+  const set = (p) => rects.forEach((r) => r.setAttribute('transform', `scale(${Math.sqrt(Math.max(0, p)).toFixed(4)})`));
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduce || Math.abs(pct - from) < 0.001) { set(pct); return; }
+  set(from);
+  const t0 = performance.now(), D = from === 0 ? 1100 : 900;
+  const ease = (x) => 1 - Math.pow(1 - x, 4);
+  const step = (now) => {
+    const k = Math.min(1, (now - t0) / D);
+    set(from + (pct - from) * ease(k));
+    if (k < 1) requestAnimationFrame(step);
+    else if (ui.justAdded) {
+      ui.justAdded = false;
+      const b = root.querySelector('.star-wrap')?.getBoundingClientRect();
+      if (b) burst(b.left + b.width / 2, b.top + b.height / 2, over ? 6 : 10);
+    }
+  };
+  requestAnimationFrame(step);
 }

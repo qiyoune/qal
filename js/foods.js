@@ -94,11 +94,21 @@ export async function searchOFF(q, signal) {
     signal?.addEventListener('abort', () => { clearTimeout(t); rej(new DOMException('aborted', 'AbortError')); });
   });
   lastSearch = Date.now();
-  const url = `${OFF}/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=24&sort_by=unique_scans_n&tagtype_0=countries&tag_contains_0=contains&tag_0=france&fields=${FIELDS}`;
-  const r = await fetch(url, { signal });
-  if (!r.ok) throw new Error('off ' + r.status);
-  const d = await r.json();
-  return (d.products || []).map(fromOFF).filter((f) => f && !f.incomplete);
+  // fr.openfoodfacts.org = produits vendus en France ; tri par popularité (nombre de scans)
+  const url = `https://fr.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=24&sort_by=unique_scans_n&fields=${FIELDS}`;
+  try {
+    const r = await fetch(url, { signal });
+    if (!r.ok) throw new Error('off ' + r.status);
+    const d = await r.json();
+    return (d.products || []).map(fromOFF).filter((f) => f && !f.incomplete);
+  } catch (e) {
+    if (e.name === 'AbortError') throw e;
+    // Plan B : le nouveau moteur de recherche d'Open Food Facts
+    const r2 = await fetch(`https://search.openfoodfacts.org/search?q=${encodeURIComponent(q)}&langs=fr&page_size=24&fields=${FIELDS}`, { signal });
+    if (!r2.ok) throw new Error('off ' + r2.status);
+    const d2 = await r2.json();
+    return (d2.hits || []).map(fromOFF).filter((f) => f && !f.incomplete);
+  }
 }
 
 export function offAddUrl(code) {

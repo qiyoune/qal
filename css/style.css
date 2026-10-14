@@ -38,8 +38,33 @@
   --font: "Manrope", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-head: "Alstoria", "Fraunces", Georgia, "Times New Roman", serif;
   --font-num: "Manrope", -apple-system, BlinkMacSystemFont, sans-serif;
+  --on-accent: #F2F1F0;
+  --halo: rgba(26, 26, 26, 0.045);
+  --drift: rgba(218, 55, 29, 0.06);
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+
+/* ---------- Le fond suit le moment de la journée ---------- */
+:root[data-period="matin"] { --bg: #F4EFE9; --bg-alt: #EBE5DD; --drift: rgba(218, 55, 29, 0.07); }
+:root[data-period="soir"] {
+  --bg: #EFE0D9; --bg-alt: #E5D2C9; --surface: #FFF9F6;
+  --drift: rgba(218, 55, 29, 0.10); --halo: rgba(218, 55, 29, 0.06);
+}
+:root[data-period="nuit"] {
+  --accent: #E8482D; --accent-hover: #F05A3F; --accent-rgb: 232, 72, 45;
+  --accent-light: rgba(232, 72, 45, 0.12); --accent-border: rgba(232, 72, 45, 0.35);
+  --bg: #1C1715; --bg-alt: #2B2421; --surface: #251F1C;
+  --ink: #F2F1F0; --ink-soft: #E5E2DF; --text-body: #CFC8C2; --text-2: #9C948D;
+  --border: rgba(242, 241, 240, 0.08); --border-md: rgba(242, 241, 240, 0.14); --border-strong: rgba(242, 241, 240, 0.2);
+  --carb: #F2F1F0; --fat: #D9B23A;
+  --shadow-sm: 0 2px 12px rgba(0, 0, 0, 0.25); --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.3); --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.45);
+  --halo: rgba(242, 241, 240, 0.04); --drift: rgba(232, 72, 45, 0.09);
+  color-scheme: dark;
+}
+body, .card, .macro, .option, .search, .input, .qty-input, .step, .preview div, #sheet, .tabs, .tab.on {
+  transition: background-color 1.2s var(--ease), color 1.2s var(--ease), border-color 1.2s var(--ease);
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -92,7 +117,7 @@ a { color: var(--accent); }
   height: 56px; position: sticky; top: 0; z-index: 5;
   margin: 0 -16px; padding: 0 16px calc(0px);
   padding-top: var(--safe-top);
-  background: rgba(242, 241, 240, .86);
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
   height: calc(56px + var(--safe-top));
   margin-top: calc(-8px - var(--safe-top));
@@ -130,7 +155,7 @@ h2 { font-size: 28px; line-height: 1.1; }
   width: 100%;
 }
 .btn:active { transform: scale(.98); }
-.btn-primary { background: var(--accent); color: var(--bg); box-shadow: 0 4px 18px rgba(var(--accent-rgb), .22); }
+.btn-primary { background: var(--accent); color: var(--on-accent); box-shadow: 0 4px 18px rgba(var(--accent-rgb), .22); }
 .btn-primary:hover { background: var(--accent-hover); }
 .btn-primary:disabled { opacity: .4; box-shadow: none; }
 .btn-outline { border: 1.5px solid var(--accent); background: transparent; color: var(--ink); }
@@ -207,7 +232,7 @@ h2 { font-size: 28px; line-height: 1.1; }
   position: fixed; left: 50%; transform: translateX(-50%);
   bottom: calc(var(--safe-bottom) + 20px); z-index: 20;
   display: inline-flex; align-items: center; gap: 10px;
-  background: var(--accent); color: var(--bg);
+  background: var(--accent); color: var(--on-accent);
   border-radius: 999px; height: 60px; padding: 0 28px;
   font-weight: 700; font-size: 16px;
   box-shadow: 0 10px 30px rgba(var(--accent-rgb), .35);
@@ -333,7 +358,7 @@ h2 { font-size: 28px; line-height: 1.1; }
   transition: border-color .2s, transform .15s var(--ease);
 }
 .option:active { transform: scale(.99); }
-.option.on { border-color: var(--accent); background: #fff; }
+.option.on { border-color: var(--accent); background: var(--surface); }
 .option .em { font-size: 24px; width: 32px; text-align: center; }
 .option .t { font-weight: 700; }
 .option .s { font-size: 13px; color: var(--text-2); }
@@ -374,3 +399,36 @@ h2 { font-size: 28px; line-height: 1.1; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---------- Grandes étoiles du fond ---------- */
+.big-star { position: absolute; transform: translate(-50%, -50%); fill: var(--drift); transition: fill 1.2s var(--ease); }
+.big-star.a { animation: drift-a 48s ease-in-out infinite; }
+.big-star.b { animation: drift-b 64s ease-in-out infinite; fill: var(--halo); }
+.big-star.c { animation: drift-a 56s ease-in-out infinite reverse; }
+@keyframes drift-a { 0%,100% { transform: translate(-50%, -50%) rotate(0deg); } 50% { transform: translate(-46%, -54%) rotate(35deg); } }
+@keyframes drift-b { 0%,100% { transform: translate(-50%, -50%) rotate(10deg) scale(1); } 50% { transform: translate(-55%, -47%) rotate(-25deg) scale(1.08); } }
+
+/* ---------- Transition étoile ---------- */
+.wipe { position: fixed; z-index: 95; pointer-events: none; fill: var(--accent); transform-origin: 50% 50%; will-change: transform, opacity; }
+.spark { position: fixed; z-index: 96; pointer-events: none; color: var(--accent); font-style: normal; line-height: 1; }
+
+/* ---------- Étoile du jour (accueil) ---------- */
+.hero-star { display: flex; flex-direction: column; align-items: center; padding-top: 6px; }
+.star-wrap { position: relative; width: min(64vw, 248px); aspect-ratio: 1; }
+.star-wrap svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.halo { fill: var(--halo); transform: scale(1.18) rotate(45deg); animation: halo-spin 120s linear infinite; }
+@keyframes halo-spin { from { transform: scale(1.18) rotate(45deg); } to { transform: scale(1.18) rotate(405deg); } }
+.star-track { fill: var(--surface); filter: drop-shadow(0 6px 18px rgba(0, 0, 0, .06)); transition: fill 1.2s var(--ease); }
+.star-fill { fill: var(--accent); }
+.star-num { white-space: pre; font-family: var(--font-num); font-weight: 800; font-size: 0.36px; letter-spacing: -0.02px; fill: var(--ink); }
+.star-num.on { fill: var(--on-accent); }
+.hero-star.over .star-fill { fill: var(--ink); }
+.hero-star.over .star-num.on { fill: var(--bg); }
+.hero-star.over .star { animation: wobble 2.6s ease-in-out infinite; }
+@keyframes wobble { 0%,100% { transform: rotate(0); } 25% { transform: rotate(-4deg); } 75% { transform: rotate(4deg); } }
+.star-label { margin-top: 10px; font-weight: 700; font-size: 15px; }
+.star-stats { display: grid; grid-template-columns: repeat(3, 1fr); width: 100%; margin-top: 16px; text-align: center; }
+.star-stats > div + div { border-left: 1px solid var(--border-md); }
+.star-stats b { display: block; font-size: 17px; font-weight: 800; letter-spacing: -0.02em; }
+.star-stats b small { font-size: 12px; font-weight: 600; color: var(--text-2); }
+.star-stats span { font-size: 12px; color: var(--text-2); }

@@ -8,6 +8,7 @@ import { startOnboarding, renderOnboarding } from './views/onboarding.js';
 import { openFoodSheet } from './sheets.js';
 import { loadCiqual } from './foods.js';
 import * as drive from './drive.js';
+import { starWipe, applyPeriod, bigStars } from './fx.js';
 
 const root = $('#app');
 const ui = {
@@ -35,7 +36,7 @@ const nav = {
   editEntry(id) {
     const e = getState().entries[id];
     if (!e || e.deleted) return;
-    openFoodSheet({ food: e, grams: e.grams, meal: e.meal, date: e.date, entryId: id, onDone: render });
+    openFoodSheet({ food: e, grams: e.grams, meal: e.meal, date: e.date, entryId: id, onDone: () => { ui.justAdded = !getState().entries[id]?.deleted; render(); } });
   },
 };
 
@@ -53,7 +54,11 @@ function render() {
   else renderToday(root, ui, nav);
 }
 
-window.addEventListener('hashchange', () => { render(); window.scrollTo(0, 0); });
+// Changement d'écran : une étoile couvre l'écran depuis le doigt, puis révèle le suivant
+window.addEventListener('hashchange', () => {
+  stopScanner();
+  starWipe(() => { render(); window.scrollTo(0, 0); });
+});
 
 // Re-dessine le journal quand les données changent (ex : après une synchro)
 subscribe(({ fromSync }) => {
@@ -72,6 +77,7 @@ document.addEventListener('visibilitychange', () => {
     const today = dateStr();
     if (ui.lastSeenDay && ui.lastSeenDay !== today && ui.date === ui.lastSeenDay) { ui.date = today; if (route() === '#/') render(); }
     ui.lastSeenDay = today;
+    applyPeriod();
     if (drive.isConnected() && drive.hasValidToken()) drive.sync().catch(() => {});
   } else {
     stopScanner();
@@ -80,7 +86,10 @@ document.addEventListener('visibilitychange', () => {
 ui.lastSeenDay = dateStr();
 
 /* ---------- Démarrage ---------- */
+applyPeriod();
+setInterval(applyPeriod, 60_000);
 sparkles();
+bigStars();
 render();
 splash();
 loadCiqual().catch(() => {});
