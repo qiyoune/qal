@@ -1,7 +1,7 @@
 // Écran principal : le journal du jour
 import { esc, icons, dayLabel, addDays, dateStr, plain, $ } from '../ui.js';
 import { MEALS, entriesFor, getState } from '../store.js';
-import { totals, scale, fmt, fmtSmart, NUTRIENTS, MICROS, references } from '../nutrition.js';
+import { totals, scale, fmt } from '../nutrition.js';
 import { starPath, burst } from '../fx.js';
 
 const STAR = starPath(1, 0.4);
@@ -42,16 +42,6 @@ export function renderToday(root, ui, nav) {
       </div>`;
   }).join('');
 
-  // Micronutriments
-  const ref = references(st.profile);
-  ref.satfat.limit = Math.round((g.kcal * 0.1) / 9);
-  const microRow = (k, isLimit) => {
-    const r = ref[k]; const target = isLimit ? r.limit : r.target;
-    const p = target ? t[k] / target : 0;
-    return `<div class="micro ${isLimit ? 'limit' : ''}"><div class="top"><span>${NUTRIENTS[k].label}</span><span>${fmtSmart(t[k])}${isLimit ? ' / max ' : ' / '}${fmt(target)} ${NUTRIENTS[k].unit}</span></div><div class="bar-track"><div class="bar-fill ${isLimit && p > 1 ? 'over' : ''}" style="width:${Math.min(100, p * 100)}%"></div></div></div>`;
-  };
-  const microCov = count ? Math.round((known.iron / count) * 100) : 0;
-
   root.innerHTML = `
     <header class="topbar">
       <div class="logo">qal ${'<span class="star">✦</span>'}</div>
@@ -60,7 +50,7 @@ export function renderToday(root, ui, nav) {
         <div class="label" id="d-label">${dayLabel(ui.date)}</div>
         <button id="d-next" aria-label="Jour suivant" ${isToday ? 'disabled' : ''}>${icons.next}</button>
       </div>
-      <button class="icon-btn" id="go-profile" aria-label="Profil">${icons.user}</button>
+      <button class="icon-btn" id="go-scan" aria-label="Scanner un code-barres">${icons.barcode}</button>
     </header>
 
     <section class="hero-star section ${over ? 'over' : ''}" aria-label="${fmt(Math.abs(left))} kcal ${over ? 'au-dessus de ton objectif' : 'restantes'}">
@@ -73,12 +63,10 @@ export function renderToday(root, ui, nav) {
           </defs>
           <path class="star-track" d="${STAR}"/>
           <path class="star-fill" d="${STAR}" transform="scale(0)"/>
-          <text class="star-num" x="0" y="0.12" text-anchor="middle">${fmt(Math.abs(left)).replace(/\s/g, ' ')}</text>
-          <g clip-path="url(#fill-clip)">
-            <text class="star-num on" x="0" y="0.12" text-anchor="middle">${fmt(Math.abs(left)).replace(/\s/g, ' ')}</text>
-          </g>
+
         </svg>
       </div>
+      <div class="star-big">${fmt(Math.abs(left))}</div>
       <div class="star-label">${over ? 'kcal au-dessus de ton objectif' : 'kcal restantes'}</div>
       <div class="star-stats">
         <div><b>${fmt(t.kcal)}</b><span>mangées</span></div>
@@ -95,29 +83,13 @@ export function renderToday(root, ui, nav) {
 
     ${meals}
 
-    <div class="section center" style="margin-top:22px">
-      <button class="pill-label" id="toggle-micros">✦ ${ui.showMicros ? 'masquer' : 'voir'} les détails ✦</button>
-    </div>
-    ${ui.showMicros ? `
-      <div class="card section">
-        <div class="micro-grid">
-          ${microRow('sugar', true)}${microRow('satfat', true)}${microRow('salt', true)}${microRow('fiber', false)}
-        </div>
-        <div style="height:18px"></div>
-        <div class="micro-grid">${MICROS.map((k) => microRow(k, false)).join('')}</div>
-        <div class="coverage">${count ? `Vitamines et minéraux connus pour ${microCov} % de tes aliments du jour. Les produits scannés n'indiquent souvent que les macros : les aliments bruts (Ciqual) sont les plus complets.` : 'Ajoute des aliments pour voir le détail.'}</div>
-      </div>` : ''}
-
-    <button class="fab" id="fab">${icons.barcode} scanner</button>
-  `;
+`;
 
   animateFill(root, ui, pct, over);
 
   $('#d-prev', root).onclick = () => { ui.date = addDays(ui.date, -1); nav.render(); };
   $('#d-next', root).onclick = () => { if (!isToday) { ui.date = addDays(ui.date, 1); nav.render(); } };
-  $('#go-profile', root).onclick = () => nav.go('#/profile');
-  $('#toggle-micros', root).onclick = () => { ui.showMicros = !ui.showMicros; nav.render(); };
-  $('#fab', root).onclick = () => nav.openAdd(null, 'scan');
+  $('#go-scan', root).onclick = () => nav.openAdd(null, 'scan');
   root.querySelectorAll('[data-add]').forEach((b) => (b.onclick = () => nav.openAdd(b.dataset.add, 'search')));
   root.querySelectorAll('[data-entry]').forEach((b) => (b.onclick = () => nav.editEntry(b.dataset.entry)));
 }

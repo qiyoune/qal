@@ -72,21 +72,35 @@ export function burst(x, y, n = 9) {
   }
 }
 
-/* ---------- Le fond suit le moment de la journée ---------- */
+/* ---------- Thème clair / sombre + ambiance selon l'heure ---------- */
+// Thème : 'auto' (suit le réglage de l'iPhone), 'light' ou 'dark'. Mémorisé sur l'appareil.
+const THEME_KEY = 'qal:theme';
+export function getThemePref() {
+  try { return localStorage.getItem(THEME_KEY) || 'auto'; } catch { return 'auto'; }
+}
+export function setThemePref(v) {
+  try { localStorage.setItem(THEME_KEY, v); } catch {}
+  applyPeriod();
+}
+const darkMQ = window.matchMedia('(prefers-color-scheme: dark)');
+darkMQ.addEventListener?.('change', () => applyPeriod());
+
+// En thème clair, la teinte du fond suit le moment de la journée
 export function periodNow(d = new Date()) {
   const h = d.getHours() + d.getMinutes() / 60;
   if (h >= 6 && h < 11) return 'matin';
   if (h >= 11 && h < 17.5) return 'jour';
-  if (h >= 17.5 && h < 21.5) return 'soir';
-  return 'nuit';
+  return 'soir';
 }
-const THEME_COLOR = { matin: '#F4EFE9', jour: '#F2F1F0', soir: '#EFE0D9', nuit: '#1C1715' };
+const THEME_COLOR = { matin: '#F4EFE9', jour: '#F2F1F0', soir: '#EFE0D9', dark: '#1C1715' };
 export function applyPeriod() {
+  const pref = getThemePref();
+  const theme = pref === 'auto' ? (darkMQ.matches ? 'dark' : 'light') : pref;
   const p = periodNow();
   const root = document.documentElement;
-  if (root.dataset.period === p) return;
+  root.dataset.theme = theme;
   root.dataset.period = p;
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', THEME_COLOR[p]);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? THEME_COLOR.dark : THEME_COLOR[p]);
 }
 
 /* ---------- Grandes étoiles qui dérivent au fond ---------- */

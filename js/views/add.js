@@ -1,6 +1,6 @@
 // Ajouter un aliment : scanner, rechercher, récents, perso
 import { esc, icons, $, toast, sheetOpen } from '../ui.js';
-import { MEALS, recentFoods, customFoods, findFoodByCode, deleteFood } from '../store.js';
+import { MEALS, recentFoods, customFoods, findFoodByCode, listRecipes, recipeAsFood } from '../store.js';
 import { fmt } from '../nutrition.js';
 import { searchCiqual, searchOFF, getProduct, norm, loadCiqual } from '../foods.js';
 import { Scanner } from '../scanner.js';
@@ -15,7 +15,7 @@ export function stopScanner() {
   scanner = null;
 }
 
-const badge = (src) => ({ ciqual: '<span class="badge ciqual">ciqual</span>', off: '<span class="badge off">off</span>', perso: '<span class="badge perso">perso</span>' }[src] || '');
+const badge = (src) => ({ ciqual: '<span class="badge ciqual">ciqual</span>', off: '<span class="badge off">off</span>', perso: '<span class="badge perso">perso</span>', recette: '<span class="badge perso">recette</span>' }[src] || '');
 
 function resultRow(f, idx, list) {
   const k = f.per100?.kcal;
@@ -143,7 +143,7 @@ export function renderAdd(root, ui, nav) {
         res.innerHTML = `<p class="muted small center" style="margin-top:28px">Les <b>aliments bruts</b> viennent de la table officielle Ciqual (ANSES).<br>Les <b>produits du commerce</b> viennent d'Open Food Facts.</p>`;
         return;
       }
-      const mine = recentFoods(200).filter((f) => nq.split(' ').every((w) => norm(f.name + ' ' + (f.brand || '')).includes(w))).slice(0, 5);
+      const mine = [...listRecipes().map(recipeAsFood), ...recentFoods(200).filter((f) => f.source !== 'recette')].filter((f) => nq.split(' ').every((w) => norm(f.name + ' ' + (f.brand || '')).includes(w))).slice(0, 5);
       const raw = await searchCiqual(q, 20);
       if (norm(input.value) !== nq) return;
       lists.mine = mine; lists.raw = raw; lists.off = offState.q === nq ? offState.items : [];
@@ -200,7 +200,7 @@ export function renderAdd(root, ui, nav) {
 
   /* ---------- Perso ---------- */
   if (tab === 'perso') {
-    const items = customFoods();
+    const items = [...listRecipes().map(recipeAsFood), ...customFoods()];
     lists.perso = items;
     body.innerHTML = `
       <button class="btn btn-primary" id="p-new">${icons.plus.replace('<svg', '<svg width="18" height="18"')} créer un aliment</button>
@@ -211,6 +211,7 @@ export function renderAdd(root, ui, nav) {
     // appui long : modifier / supprimer
     body.querySelectorAll('.result').forEach((b) => {
       let t;
+      if (lists.perso[+b.dataset.i].source === 'recette') return;
       b.addEventListener('touchstart', () => { t = setTimeout(() => editCustom(lists.perso[+b.dataset.i]), 550); }, { passive: true });
       ['touchend', 'touchmove'].forEach((ev) => b.addEventListener(ev, () => clearTimeout(t), { passive: true }));
       b.addEventListener('contextmenu', (e) => { e.preventDefault(); editCustom(lists.perso[+b.dataset.i]); });

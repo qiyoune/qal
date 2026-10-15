@@ -4,13 +4,13 @@ import { MEALS, addEntry, updateEntry, deleteEntry, saveCustomFood } from './sto
 import { scale, fmt } from './nutrition.js';
 import { offAddUrl } from './foods.js';
 
-const badge = (src) => ({ ciqual: '<span class="badge ciqual">ciqual</span>', off: '<span class="badge off">open food facts</span>', perso: '<span class="badge perso">perso</span>' }[src] || '');
+const badge = (src) => ({ ciqual: '<span class="badge ciqual">ciqual</span>', off: '<span class="badge off">open food facts</span>', perso: '<span class="badge perso">perso</span>', recette: '<span class="badge perso">recette</span>' }[src] || '');
 
 /**
  * Fiche aliment : choisir la quantité et le repas.
  * opts: { food, grams, meal, date, entryId, onDone, onCancel }
  */
-export function openFoodSheet({ food, grams, meal, date, entryId, onDone, onCancel }) {
+export function openFoodSheet({ food, grams, meal, date, entryId, onDone, onCancel, extra = [] }) {
   let g = grams || food.lastGrams || food.serving?.grams || 100;
   let m = meal;
   const p = food.per100 || {};
@@ -48,6 +48,7 @@ export function openFoodSheet({ food, grams, meal, date, entryId, onDone, onCanc
 
     <div class="stack" style="margin-top:16px">
       <button class="btn btn-primary" id="f-save"></button>
+      ${extra.map((x, i) => `<button class="btn ${x.cls || 'btn-ghost'}" data-extra="${i}">${esc(x.label)}</button>`).join('')}
       ${entryId ? `<button class="btn btn-danger" id="f-del">${icons.trash.replace('<svg', '<svg width="18" height="18"')} supprimer</button>` : ''}
     </div>`;
 
@@ -87,6 +88,7 @@ export function openFoodSheet({ food, grams, meal, date, entryId, onDone, onCanc
     closeSheet({ silent: true });
     onDone?.();
   };
+  sheet.querySelectorAll('[data-extra]').forEach((b) => (b.onclick = () => { closeSheet({ silent: true }); extra[+b.dataset.extra].onClick(); }));
   $('#f-del', sheet)?.addEventListener('click', () => {
     deleteEntry(entryId);
     toast('supprimé');

@@ -15,6 +15,7 @@ const empty = () => ({
   goals: null,     // { kcal, prot, carb, fat, fiber, custom, updatedAt }
   entries: {},     // id -> { id, date, meal, name, brand, grams, per100, source, code, img, updatedAt, deleted }
   foods: {},       // key -> { key, name, brand, per100, source, code, img, serving, count, usedAt, custom, updatedAt, deleted }
+  recipes: {},     // id -> { id, name, portions, ingredients: [{ name, brand, grams, per100, source, code }], updatedAt, deleted }
   meta: { deviceId: uid(), createdAt: Date.now() },
 });
 
@@ -141,6 +142,41 @@ export function findFoodByCode(code) {
   return f && !f.deleted ? f : null;
 }
 
+/* ---------- Recettes ---------- */
+export function listRecipes() {
+  return Object.values(state.recipes || {}).filter((r) => !r.deleted && r.name).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+}
+export function getRecipe(id) {
+  const r = state.recipes?.[id];
+  return r && !r.deleted ? r : null;
+}
+export function saveRecipe(recipe) {
+  const id = recipe.id || uid();
+  const now = Date.now();
+  state.recipes = state.recipes || {};
+  state.recipes[id] = { ...recipe, id, createdAt: recipe.createdAt || now, updatedAt: now, deleted: false };
+  persist();
+  return state.recipes[id];
+}
+export function deleteRecipe(id) {
+  if (!state.recipes?.[id]) return;
+  state.recipes[id] = { id, deleted: true, updatedAt: Date.now() };
+  persist();
+}
+// Une recette devient un "aliment" : valeurs pour 100 g + une portion
+export function recipeAsFood(r) {
+  const totalG = r.ingredients.reduce((s, i) => s + (+i.grams || 0), 0) || 1;
+  const keys = new Set(r.ingredients.flatMap((i) => Object.keys(i.per100 || {})));
+  const per100 = {};
+  for (const k of keys) {
+    let sum = 0, known = false;
+    for (const i of r.ingredients) { const v = i.per100?.[k]; if (v != null) { sum += (v * i.grams) / 100; known = true; } }
+    per100[k] = known ? (sum * 100) / totalG : null;
+  }
+  const portions = Math.max(1, +r.portions || 1);
+  return { name: r.name, brand: 'recette', per100, source: 'recette', recipeId: r.id, serving: { grams: Math.round(totalG / portions), label: 'portion' }, totalGrams: totalG };
+}
+
 /* ---------- Sync helpers ---------- */
 export function setMeta(patch) {
   state.meta = { ...state.meta, ...patch };
@@ -167,6 +203,7 @@ export function merge(a, b) {
     goals: pick(a.goals, b.goals),
     entries: prune(mergeMap(a.entries, b.entries)),
     foods: prune(mergeMap(a.foods, b.foods)),
+    recipes: prune(mergeMap(a.recipes, b.recipes)),
     meta: a.meta,
   };
 }

@@ -3,6 +3,7 @@ import { esc, icons, num, toast, plain, $ } from '../ui.js';
 import { getState, setGoals, setProfile, exportData, importData, resetAll } from '../store.js';
 import { computeTargets, fmt } from '../nutrition.js';
 import * as drive from '../drive.js';
+import { getThemePref, setThemePref } from '../fx.js';
 
 const LABELS = {
   sex: { m: 'homme', f: 'femme' },
@@ -25,7 +26,7 @@ export function renderProfile(root, ui, nav) {
 
   root.innerHTML = `
     <header class="topbar">
-      <button class="icon-btn" id="p-back" aria-label="Retour">${icons.back}</button>
+      <span style="width:42px"></span>
       <div class="head" style="font-size:24px">${p.name ? plain(esc(p.name.toLowerCase())) : 'profil'} ${'<span class="star">✦</span>'}</div>
       <span style="width:42px"></span>
     </header>
@@ -64,6 +65,14 @@ export function renderProfile(root, ui, nav) {
       <button class="btn btn-outline" id="p-redo" style="margin-top:12px">refaire le questionnaire</button>
     </div>
 
+    <div class="section center" style="margin-top:26px"><span class="pill-label">✦ apparence ✦</span></div>
+    <div class="card section">
+      <div class="segmented" id="theme-seg" role="radiogroup" aria-label="Thème">
+        ${[['auto', 'auto'], ['light', 'clair'], ['dark', 'sombre']].map(([v, l]) => `<button role="radio" aria-checked="${getThemePref() === v}" class="${getThemePref() === v ? 'on' : ''}" data-theme="${v}">${l}</button>`).join('')}
+      </div>
+      <p class="small muted" style="margin:10px 4px 0">Auto suit le réglage clair / sombre de ton iPhone. En clair, le fond change de teinte selon le moment de la journée.</p>
+    </div>
+
     <div class="section center" style="margin-top:26px"><span class="pill-label">✦ synchro ✦</span></div>
     <div class="card section">
       <div class="sync-status"><span class="dot ${drive.isConnected() ? (drive.hasValidToken() ? 'ok' : 'err') : ''}"></span><span>${syncTxt}</span></div>
@@ -88,8 +97,12 @@ export function renderProfile(root, ui, nav) {
       Les objectifs sont des estimations, pas un avis médical.
     </p>`;
 
-  $('#p-back', root).onclick = () => nav.go('#/');
   $('#p-redo', root).onclick = () => nav.go('#/onboarding');
+
+  root.querySelectorAll('[data-theme]').forEach((b) => (b.onclick = () => {
+    setThemePref(b.dataset.theme);
+    root.querySelectorAll('[data-theme]').forEach((x) => { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', x === b); });
+  }));
 
   // Réponses écrites : modifiables à tout moment
   const tDay = $('#t-day', root), tTrain = $('#t-train', root), tSave = $('#t-save', root);
