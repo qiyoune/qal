@@ -409,7 +409,7 @@ h2 { font-size: 28px; line-height: 1.1; }
 @keyframes drift-b { 0%,100% { transform: translate(-50%, -50%) rotate(10deg) scale(1); } 50% { transform: translate(-55%, -47%) rotate(-25deg) scale(1.08); } }
 
 /* ---------- Transition étoile ---------- */
-.wipe { position: fixed; z-index: 95; pointer-events: none; fill: #FFFFFF; transform-origin: 50% 50%; will-change: transform, opacity; }
+.wipe { position: fixed; z-index: 95; pointer-events: none; fill: var(--chat-bg); transform-origin: 50% 50%; will-change: transform, opacity; }
 .spark { position: fixed; z-index: 96; pointer-events: none; color: var(--accent); font-style: normal; line-height: 1; }
 
 /* ---------- Étoile du jour (accueil) ---------- */
@@ -475,7 +475,7 @@ h2 { font-size: 28px; line-height: 1.1; }
   transition: transform .2s var(--ease), box-shadow 1.2s var(--ease);
 }
 .tab-ai:active { transform: scale(.92); }
-.tab-ai-star { color: #1A1A1A; font-size: 30px; line-height: 1; display: inline-block; animation: ai-breathe 4s ease-in-out infinite; }
+.tab-ai-star { color: var(--chat-bg); font-size: 30px; line-height: 1; display: inline-block; animation: ai-breathe 4s ease-in-out infinite; }
 @keyframes ai-breathe { 0%,100% { transform: rotate(0) scale(1); } 50% { transform: rotate(45deg) scale(1.08); } }
 body.has-tabbar #app { padding-bottom: calc(var(--safe-bottom) + 120px); }
 body.has-tabbar #toast { bottom: calc(var(--safe-bottom) + 98px); }
@@ -516,7 +516,7 @@ body.has-tabbar #toast { bottom: calc(var(--safe-bottom) + 98px); }
 .chat { display: flex; flex-direction: column; min-height: calc(100dvh - var(--safe-top) - 8px); }
 .chat-title { display: flex; align-items: center; gap: 10px; }
 .chat-title .head { font-size: 24px; }
-.chat-orb { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: #1A1A1A; display: grid; place-items: center; font-size: 15px; }
+.chat-orb { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: var(--chat-bg); display: grid; place-items: center; font-size: 15px; }
 .chat-list { flex: 1; display: flex; flex-direction: column; gap: 10px; padding: 14px 0 120px; }
 .chat-empty { margin: auto 0; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 20px 0; }
 .chat-empty p { max-width: 34ch; margin: 0; }
@@ -548,8 +548,9 @@ body.has-tabbar #toast { bottom: calc(var(--safe-bottom) + 98px); }
 .segmented button { border-radius: 999px; padding: 10px 4px; font-size: 14px; font-weight: 700; color: var(--text-2); transition: background-color .25s, color .25s; }
 .segmented button.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-sm); }
 html:root[data-theme="dark"] .star-track { fill: #362C28; }
-html:root[data-theme="dark"] .wipe { fill: #000000; }
 
-/* Onglet profil : le fond prend la couleur de l'étoile (blanc pur / noir pur) */
-body.page-profile { --bg: #FFFFFF; --bg-alt: #F1EFED; --surface: #F6F5F3; }
-html:root[data-theme="dark"] body.page-profile { --bg: #000000; --bg-alt: #1E1A18; --surface: #141110; }
+/* Chat IA : l'étoile crème du bouton grandit et devient le fond du chat */
+:root { --chat-bg: #E5DACF; }
+html:root[data-theme="dark"] { --chat-bg: #2E2622; }
+body.page-chat { --bg: var(--chat-bg); --surface: #FBF8F5; }
+html:root[data-theme="dark"] body.page-chat { --surface: #3A302B; }

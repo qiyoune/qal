@@ -20,10 +20,10 @@ const origin = () => (lastPt && Date.now() - lastPt.t < 1500 ? lastPt : { x: inn
 
 /* ---------- Transition : une étoile couvre l'écran puis révèle le suivant ---------- */
 let wiping = false;
-export async function starWipe(swap) {
+export async function starWipe(swap, from = null) {
   if (reduce() || wiping) { swap(); return; }
   wiping = true;
-  const { x, y } = origin();
+  const { x, y } = from || origin();
   const far = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
   const R = far / 0.31; // le creux de l'étoile doit couvrir tout l'écran
   const el = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -35,13 +35,11 @@ export async function starWipe(swap) {
   try {
     await el.animate(
       [{ transform: 'scale(0.002) rotate(-45deg)' }, { transform: 'scale(1) rotate(0deg)' }],
-      { duration: 420, easing: 'cubic-bezier(.7,0,.84,0)', fill: 'forwards' }
+      { duration: 520, easing: 'cubic-bezier(.65,0,.35,1)', fill: 'forwards' }
     ).finished;
     swap();
-    await el.animate(
-      [{ transform: 'scale(1) rotate(0deg)', opacity: 1 }, { transform: 'scale(1.25) rotate(20deg)', opacity: 0 }],
-      { duration: 380, easing: 'cubic-bezier(.16,1,.3,1)', fill: 'forwards' }
-    ).finished;
+    // l'étoile a la couleur du fond de l'écran suivant : elle se fond dedans
+    await el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: 'ease-out', fill: 'forwards' }).finished;
   } finally {
     el.remove();
     wiping = false;

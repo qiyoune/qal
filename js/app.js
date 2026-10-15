@@ -85,16 +85,20 @@ function renderTabbar(r) {
   const route = r === '' ? '#/' : r;
   bar.hidden = !SHOW_TABBAR.includes(route);
   document.body.classList.toggle('has-tabbar', !bar.hidden);
-  document.body.classList.toggle('page-profile', route === '#/profile');
+  document.body.classList.toggle('page-chat', route === '#/chat');
   bar.querySelectorAll('.tab-item').forEach((a) => a.classList.toggle('on', a.dataset.hash === route));
 }
 
-// Changement d'écran. L'étoile qui couvre l'écran est réservée à l'onglet profil.
+// Changement d'écran : instantané. Seul le bouton IA a son animation :
+// l'étoile du bouton grandit jusqu'à devenir le fond du chat.
 window.addEventListener('hashchange', () => {
   stopScanner();
   const go = () => { render(); window.scrollTo(0, 0); };
-  if (route() === '#/profile') starWipe(go);
-  else go();
+  const btn = document.querySelector('#tabbar:not([hidden]) .tab-ai');
+  if (route() === '#/chat' && btn) {
+    const b = btn.getBoundingClientRect();
+    starWipe(go, { x: b.left + b.width / 2, y: b.top + b.height / 2 });
+  } else go();
 });
 
 // Re-dessine le journal quand les données changent (ex : après une synchro)
