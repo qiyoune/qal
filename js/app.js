@@ -85,13 +85,16 @@ function renderTabbar(r) {
   const route = r === '' ? '#/' : r;
   bar.hidden = !SHOW_TABBAR.includes(route);
   document.body.classList.toggle('has-tabbar', !bar.hidden);
+  document.body.classList.toggle('page-profile', route === '#/profile');
   bar.querySelectorAll('.tab-item').forEach((a) => a.classList.toggle('on', a.dataset.hash === route));
 }
 
-// Changement d'écran : une étoile couvre l'écran depuis le doigt, puis révèle le suivant
+// Changement d'écran. L'étoile qui couvre l'écran est réservée à l'onglet profil.
 window.addEventListener('hashchange', () => {
   stopScanner();
-  starWipe(() => { render(); window.scrollTo(0, 0); });
+  const go = () => { render(); window.scrollTo(0, 0); };
+  if (route() === '#/profile') starWipe(go);
+  else go();
 });
 
 // Re-dessine le journal quand les données changent (ex : après une synchro)

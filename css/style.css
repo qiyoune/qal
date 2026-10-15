@@ -63,7 +63,7 @@ html:root[data-theme="dark"] {
   --halo: rgba(242, 241, 240, 0.04); --drift: rgba(232, 72, 45, 0.09);
   color-scheme: dark;
 }
-body, .card, .macro, .option, .search, .input, .qty-input, .step, .preview div, #sheet, .tabs, .tab.on {
+.card, .macro, .option, .search, .input, .qty-input, .step, .preview div, #sheet, .tabs, .tab.on {
   transition: background-color 1.2s var(--ease), color 1.2s var(--ease), border-color 1.2s var(--ease);
 }
 
@@ -409,7 +409,7 @@ h2 { font-size: 28px; line-height: 1.1; }
 @keyframes drift-b { 0%,100% { transform: translate(-50%, -50%) rotate(10deg) scale(1); } 50% { transform: translate(-55%, -47%) rotate(-25deg) scale(1.08); } }
 
 /* ---------- Transition étoile ---------- */
-.wipe { position: fixed; z-index: 95; pointer-events: none; fill: var(--accent); transform-origin: 50% 50%; will-change: transform, opacity; }
+.wipe { position: fixed; z-index: 95; pointer-events: none; fill: #FFFFFF; transform-origin: 50% 50%; will-change: transform, opacity; }
 .spark { position: fixed; z-index: 96; pointer-events: none; color: var(--accent); font-style: normal; line-height: 1; }
 
 /* ---------- Étoile du jour (accueil) ---------- */
@@ -548,3 +548,8 @@ body.has-tabbar #toast { bottom: calc(var(--safe-bottom) + 98px); }
 .segmented button { border-radius: 999px; padding: 10px 4px; font-size: 14px; font-weight: 700; color: var(--text-2); transition: background-color .25s, color .25s; }
 .segmented button.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-sm); }
 html:root[data-theme="dark"] .star-track { fill: #362C28; }
+html:root[data-theme="dark"] .wipe { fill: #000000; }
+
+/* Onglet profil : le fond prend la couleur de l'étoile (blanc pur / noir pur) */
+body.page-profile { --bg: #FFFFFF; --bg-alt: #F1EFED; --surface: #F6F5F3; }
+html:root[data-theme="dark"] body.page-profile { --bg: #000000; --bg-alt: #1E1A18; --surface: #141110; }
