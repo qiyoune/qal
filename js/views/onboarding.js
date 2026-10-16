@@ -208,6 +208,7 @@ export function renderOnboarding(root, done) {
       <div class="ob-top">
         <button class="icon-btn" id="ob-back" ${canBack ? '' : 'style="visibility:hidden"'} aria-label="Retour">${icons.back}</button>
         <div class="ob-progress"><div style="width:${progress}%"></div></div>
+        <span class="ob-spacer" aria-hidden="true"></span>
       </div>
       <div class="ob-body">${body}</div>
       <div class="ob-foot">${needsNext ? `<button class="btn ${nextLabel === 'plus tard' ? 'btn-ghost' : 'btn-primary'}" id="ob-next">${nextLabel}</button>` : ''}</div>

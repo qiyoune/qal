@@ -345,6 +345,7 @@ h2 { font-size: 28px; line-height: 1.1; }
 .ob-progress div { height: 100%; background: var(--accent); transition: width .5s var(--ease); }
 .ob-top { display: flex; align-items: center; gap: 12px; }
 .ob-top .ob-progress { flex: 1; }
+.ob-top .icon-btn, .ob-spacer { flex: 0 0 42px; width: 42px; }
 .ob-body { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 22px; padding: 28px 0; animation: obin .45s var(--ease); }
 @keyframes obin { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 .ob-body h1 { font-size: 38px; }
