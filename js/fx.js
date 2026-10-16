@@ -90,7 +90,7 @@ export function periodNow(d = new Date()) {
   if (h >= 11 && h < 17.5) return 'jour';
   return 'soir';
 }
-const THEME_COLOR = { matin: '#F4EFE9', jour: '#F2F1F0', soir: '#EFE0D9', dark: '#1C1715' };
+const THEME_COLOR = { matin: '#F2F1F0', jour: '#F2F1F0', soir: '#F2F1F0', dark: '#1C1715' };
 export function applyPeriod() {
   const pref = getThemePref();
   const theme = pref === 'auto' ? (darkMQ.matches ? 'dark' : 'light') : pref;

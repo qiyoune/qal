@@ -27,7 +27,7 @@ export function renderSettings(root, ui, nav) {
       <div class="segmented" id="theme-seg" role="radiogroup" aria-label="Thème">
         ${[['auto', 'auto'], ['light', 'clair'], ['dark', 'sombre']].map(([v, l]) => `<button role="radio" aria-checked="${getThemePref() === v}" class="${getThemePref() === v ? 'on' : ''}" data-theme="${v}">${l}</button>`).join('')}
       </div>
-      <p class="small muted" style="margin:10px 4px 0">Auto suit le réglage clair / sombre de ton iPhone. En clair, le fond change de teinte selon le moment de la journée.</p>
+      <p class="small muted" style="margin:10px 4px 0">Auto suit le réglage clair / sombre de ton iPhone.</p>
     </div>
 
     <div class="section center" style="margin-top:26px"><span class="pill-label">✦ repas ✦</span></div>
