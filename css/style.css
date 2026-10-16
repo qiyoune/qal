@@ -591,3 +591,4 @@ html:root[data-theme="dark"] body.page-chat { --surface: #3A302B; }
 .ac-btns .btn { flex: 1; }
 .ac-status { margin-top: 10px; font-size: 13px; font-weight: 700; color: var(--success); }
 .action-card.cancelled .ac-status { color: var(--text-2); }
+.ob-section { font-size: 13px; font-weight: 700; color: var(--accent); margin-bottom: -10px; }

@@ -12,6 +12,9 @@ const LABELS = {
   trainFreq: { 0: 'jamais', 1: '1-2 fois / sem.', 2: '3-4 fois / sem.', 3: '5+ fois / sem.' },
   goal: { lose: 'perdre du gras', maintain: 'garder mon poids', gain: 'prendre du muscle' },
   appetite: { petit: 'petit appétit', normal: 'normal', gros: 'gros mangeur', grignote: 'je grignote' },
+  steps: { lt5: '< 5 000', '5to8': '5 000 – 8 000', '8to12': '8 000 – 12 000', gt12: '> 12 000', unknown: 'inconnu' },
+  diet: { omni: 'de tout', flexi: 'flexitarien', pesco: 'pescétarien', vege: 'végétarien', vegan: 'vegan' },
+  cooking: { never: 'presque jamais', simple: 'trucs simples', often: 'souvent' },
 };
 
 export function renderProfile(root, ui, nav) {
@@ -53,10 +56,15 @@ export function renderProfile(root, ui, nav) {
         ['âge', p.age ? p.age + ' ans' : '–'],
         ['taille', p.height ? p.height + ' cm' : '–'],
         ['poids', p.weight ? String(p.weight).replace('.', ',') + ' kg' : '–'],
+        ['poids visé', p.targetWeight ? String(p.targetWeight).replace('.', ',') + ' kg' : '–'],
         ['journée', LABELS.daily[p.daily] || '–'],
+        ['pas / jour', LABELS.steps[p.steps] || '–'],
         ['sport', LABELS.trainFreq[p.trainFreq] || '–'],
         ['objectif', LABELS.goal[p.goal] || '–'],
         ['appétit', LABELS.appetite[p.appetite] || '–'],
+        ['régime', LABELS.diet[p.diet] || '–'],
+        ['repas / jour', p.meals ? (p.meals >= 5 ? '5+' : p.meals) : '–'],
+        ['cuisine', LABELS.cooking[p.cooking] || '–'],
       ].map(([k, v]) => `<div class="kv"><span>${k}</span><span>${v}</span></div>`).join('')}
       <div class="about-label">Ta journée type</div>
       <div class="long-input compact"><textarea id="t-day" maxlength="280" placeholder="Raconte ta journée en quelques mots">${esc(p.dayText || '')}</textarea><span class="count">${(p.dayText || '').length} / 280</span></div>

@@ -43,12 +43,15 @@ export function references(profile) {
 }
 
 const BASE_ACTIVITY = { assis: 1.2, debout: 1.35, physique: 1.5 };
+const STEPS_ACTIVITY = { lt5: 1.2, '5to8': 1.3, '8to12': 1.4, gt12: 1.52 };
 const TRAINING_ADD = { 0: 0, 1: 0.1, 2: 0.2, 3: 0.3 };
 
 export function computeTargets(p) {
   const w = +p.weight, h = +p.height, a = +p.age;
   const bmr = Math.round(10 * w + 6.25 * h - 5 * a + (p.sex === 'f' ? -161 : 5));
-  const factor = Math.min(1.95, (BASE_ACTIVITY[p.daily] || 1.2) + (TRAINING_ADD[p.trainFreq] || 0));
+  // les pas (s'ils sont connus) affinent l'activité du quotidien
+  const base = Math.max(BASE_ACTIVITY[p.daily] || 1.2, STEPS_ACTIVITY[p.steps] || 0);
+  const factor = Math.min(1.95, base + (TRAINING_ADD[p.trainFreq] || 0));
   const tdee = Math.round(bmr * factor);
 
   let delta = 0;
@@ -69,7 +72,16 @@ export function computeTargets(p) {
   const carb = Math.max(50, Math.round((kcal - prot * 4 - fat * 9) / 4));
   const fiber = Math.round((kcal / 1000) * 14);
 
-  return { bmr, tdee, factor: Math.round(factor * 100) / 100, kcal, prot, carb, fat, fiber, protPerKg };
+  // durée estimée jusqu'au poids visé (7 700 kcal ≈ 1 kg)
+  let weeks = null;
+  const tw = +p.targetWeight;
+  if (tw && p.goal !== 'maintain' && Math.abs(tw - w) >= 0.5) {
+    const perWeek = Math.abs(kcal - tdee) * 7 / 7700;
+    const right = (p.goal === 'lose' && tw < w) || (p.goal === 'gain' && tw > w);
+    if (right && perWeek > 0.05) weeks = Math.round(Math.abs(tw - w) / perWeek);
+  }
+
+  return { bmr, tdee, factor: Math.round(factor * 100) / 100, kcal, prot, carb, fat, fiber, protPerKg, weeks };
 }
 
 export function tipsFor(p) {
@@ -79,6 +91,9 @@ export function tipsFor(p) {
   if (p.appetite === 'petit' && p.goal === 'gain') tips.push("Petit appétit + prise de masse : privilégie les aliments denses (huile d'olive, oléagineux, flocons d'avoine, fromage) et les calories liquides (smoothies, lait).");
   if (p.appetite === 'petit' && p.goal !== 'gain') tips.push('Petit appétit : concentre-toi surtout sur ton objectif de protéines, le reste suivra.');
   if ((p.training || []).includes('muscu')) tips.push('Muscu : répartis tes protéines sur 3-4 repas (≈ 25-40 g chacun), c\'est plus efficace que tout d\'un coup.');
+  if (p.diet === 'vege' || p.diet === 'vegan') tips.push(`${p.diet === 'vegan' ? 'Vegan' : 'Végétarien'} : vise des protéines à chaque repas (tofu, lentilles, pois chiches, ${p.diet === 'vegan' ? 'seitan, protéine de pois' : 'œufs, skyr, fromage'}). ${p.diet === 'vegan' ? 'Et pense à la vitamine B12 en complément.' : ''}`.trim());
+  if (p.cooking === 'never') tips.push('Tu cuisines peu : garde quelques valeurs sûres (skyr, thon, œufs durs, riz en sachet, poulet rôti, wraps) et enregistre tes plats habituels en recettes pour les ajouter en un tap.');
+  if (p.meals === 2) tips.push('Avec 2 repas par jour, répartis tes protéines sur ces deux repas (au moins 40 g chacun) pour atteindre ton objectif.');
   if (p.goal === 'lose') tips.push('Pèse-toi dans les mêmes conditions (le matin, à jeun) et regarde la moyenne de la semaine, pas le chiffre du jour.');
   return tips;
 }

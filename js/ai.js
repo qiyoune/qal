@@ -34,8 +34,23 @@ export function buildContext(date = dateStr()) {
   lines.push(`Nous sommes le ${date}, il est ${now.getHours()}h${String(now.getMinutes()).padStart(2, '0')}.`);
   lines.push(`Profil : ${p.name || 'utilisateur'}, ${p.sex === 'f' ? 'femme' : 'homme'}, ${p.age} ans, ${p.height} cm, ${p.weight} kg.`);
   lines.push(`Objectif : ${{ lose: 'perdre du gras', maintain: 'maintenir son poids', gain: 'prendre du muscle' }[p.goal] || '?'}. Appétit : ${p.appetite || '?'}.`);
+  const L = {
+    daily: { assis: 'plutôt assis', debout: 'souvent debout', physique: 'boulot physique' },
+    steps: { lt5: 'moins de 5 000', '5to8': '5 000 à 8 000', '8to12': '8 000 à 12 000', gt12: 'plus de 12 000', unknown: 'inconnu' },
+    trainFreq: { 0: 'jamais', 1: '1-2 fois/semaine', 2: '3-4 fois/semaine', 3: '5+ fois/semaine' },
+    diet: { omni: 'mange de tout', flexi: 'flexitarien', pesco: 'pescétarien', vege: 'végétarien', vegan: 'vegan' },
+    restrictions: { none: 'aucune', halal: 'halal', noPork: 'sans porc', noLactose: 'sans lactose', noGluten: 'sans gluten', noNuts: 'allergie fruits à coque', other: 'autre (voir texte)' },
+    cooking: { never: 'cuisine presque jamais', simple: 'cuisine des trucs simples (15 min max)', often: 'cuisine souvent avec plaisir' },
+    pace: { slow: 'tranquille', fast: 'soutenu' },
+  };
+  if (p.targetWeight) lines.push(`Poids visé : ${p.targetWeight} kg${p.pace ? `, rythme ${L.pace[p.pace]}` : ''}.`);
+  if (p.whyText) lines.push(`Sa motivation (écrit par lui) : « ${p.whyText} »`);
+  lines.push(`Activité : journée ${L.daily[p.daily] || '?'}, pas par jour ${L.steps[p.steps] || '?'}, sport ${L.trainFreq[p.trainFreq] || '?'}${(p.training || []).length ? ' (' + p.training.join(', ') + ')' : ''}.`);
   if (p.dayText) lines.push(`Sa journée type (écrit par lui) : « ${p.dayText} »`);
   if (p.trainText) lines.push(`Son entraînement (écrit par lui) : « ${p.trainText} »`);
+  lines.push(`Alimentation : ${L.diet[p.diet] || '?'} ; restrictions : ${(p.restrictions || []).map((r) => L.restrictions[r] || r).join(', ') || '?'} ; ${p.meals ? p.meals + ' prises alimentaires par jour' : ''} ; ${L.cooking[p.cooking] || ''}.`);
+  if (p.foodText) lines.push(`Goûts (écrit par lui) : « ${p.foodText} »`);
+  if (p.healthText) lines.push(`Santé (écrit par lui) : « ${p.healthText} » — en tenir compte, sans poser de diagnostic.`);
   lines.push(`Objectifs du jour : ${g.kcal} kcal, P ${g.prot} g, G ${g.carb} g, L ${g.fat} g.`);
   lines.push(`Mangé aujourd'hui (${date}) : ${fmt(t.kcal)} kcal, P ${fmt(t.prot)} g, G ${fmt(t.carb)} g, L ${fmt(t.fat)} g, fibres ${fmt(t.fiber)} g.`);
   for (const m of MEALS) {
@@ -58,7 +73,7 @@ export function setGeminiKey(k) {
 const SYSTEM = `Tu es l'assistant nutrition de l'appli qal ✦. Tu parles français, tu tutoies, tu es direct, chaleureux et concret.
 Tu t'appuies sur le profil et la journée de l'utilisateur fournis ci-dessous (ses réponses écrites sont précieuses : utilise-les).
 Réponses courtes (3 à 6 phrases), avec des quantités précises en grammes quand tu proposes à manger. Pas de markdown.
-Tu n'inventes pas ce qu'il a mangé : tu utilises le contexte.
+Tu n'inventes pas ce qu'il a mangé : tu utilises le contexte. Respecte TOUJOURS son régime, ses restrictions et allergies dans tes idées de repas, et adapte la difficulté des recettes à sa façon de cuisiner.
 Tu n'es pas médecin : en cas de question médicale ou de trouble alimentaire, oriente vers un professionnel.
 
 Tu peux agir sur l'appli avec tes outils : ajouter des aliments au journal (add_foods), modifier ou supprimer une entrée existante (update_entry, delete_entry, avec son id du contexte), créer une recette (create_recipe).

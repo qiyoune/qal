@@ -7,26 +7,58 @@ let a = {};      // réponses
 let i = 0;       // étape courante
 
 const STEPS = [
+  /* ---------- Intro ---------- */
   {
-    key: 'name', kind: 'text', optional: true,
-    title: () => `salut ${star}<br>comment tu t'appelles ?`,
-    sub: 'Juste pour que ce soit plus sympa.',
-    placeholder: 'ton prénom',
+    key: 'intro', kind: 'intro', section: '',
+    title: () => `on fait connaissance ${star}`,
+    sub: "2 minutes pour que tes objectifs et l'IA soient vraiment adaptés à toi : ton corps, ton objectif, ton activité et ta façon de manger. Tes réponses restent sur ton téléphone (et dans ton Google Drive si tu actives la synchro).",
   },
+
+  /* ---------- 1. Toi ---------- */
+  { key: 'name', kind: 'text', optional: true, section: 'toi', title: () => "comment tu t'appelles ?", placeholder: 'ton prénom' },
   {
-    key: 'sex', kind: 'choice',
+    key: 'sex', kind: 'choice', section: 'toi',
     title: () => 'tu es…',
-    sub: 'Ça sert uniquement à calculer ta dépense de base.',
+    sub: 'Ça sert à calculer ta dépense de base.',
+    options: [{ v: 'm', em: '🙋‍♂️', t: 'un homme' }, { v: 'f', em: '🙋‍♀️', t: 'une femme' }],
+  },
+  { key: 'age', kind: 'number', unit: 'ans', min: 13, max: 100, section: 'toi', title: () => 'tu as quel âge ?' },
+  { key: 'height', kind: 'number', unit: 'cm', min: 120, max: 230, section: 'toi', title: () => 'tu mesures combien ?' },
+  { key: 'weight', kind: 'number', unit: 'kg', min: 30, max: 300, decimal: true, section: 'toi', title: () => 'et tu pèses combien ?', sub: "Le matin, à jeun, c'est le plus fiable." },
+
+  /* ---------- 2. Objectif ---------- */
+  {
+    key: 'goal', kind: 'choice', section: 'objectif',
+    title: () => 'ton objectif ?',
     options: [
-      { v: 'm', em: '🙋‍♂️', t: 'un homme' },
-      { v: 'f', em: '🙋‍♀️', t: 'une femme' },
+      { v: 'lose', em: '📉', t: 'Perdre du gras' },
+      { v: 'maintain', em: '⚖️', t: 'Garder mon poids', s: 'et mieux manger' },
+      { v: 'gain', em: '📈', t: 'Prendre du muscle' },
     ],
   },
-  { key: 'age', kind: 'number', unit: 'ans', min: 13, max: 100, title: () => 'tu as quel âge ?' },
-  { key: 'height', kind: 'number', unit: 'cm', min: 120, max: 230, title: () => 'tu mesures combien ?' },
-  { key: 'weight', kind: 'number', unit: 'kg', min: 30, max: 300, decimal: true, title: () => 'et tu pèses combien ?', sub: 'Le matin, à jeun, c\'est le plus fiable.' },
   {
-    key: 'daily', kind: 'choice',
+    key: 'targetWeight', kind: 'number', unit: 'kg', min: 30, max: 300, decimal: true, optional: true, section: 'objectif',
+    skip: () => a.goal === 'maintain',
+    title: () => 'tu vises quel poids ?',
+    sub: "Facultatif. Ça permet d'estimer le temps qu'il faut.",
+  },
+  {
+    key: 'pace', kind: 'choice', section: 'objectif', skip: () => a.goal === 'maintain',
+    title: () => 'à quel rythme ?',
+    options: () => a.goal === 'lose'
+      ? [{ v: 'slow', em: '🐢', t: 'Tranquille', s: '≈ 0,3 à 0,5 kg par semaine, facile à tenir' }, { v: 'fast', em: '🐇', t: 'Soutenu', s: '≈ 0,5 à 0,8 kg par semaine, plus dur' }]
+      : [{ v: 'slow', em: '🐢', t: 'Propre', s: 'peu de gras pris, plus lent' }, { v: 'fast', em: '🐇', t: 'Rapide', s: 'plus de poids, un peu plus de gras' }],
+  },
+  {
+    key: 'whyText', kind: 'longtext', optional: true, max: 200, section: 'objectif',
+    title: () => "qu'est-ce qui te motive ?",
+    sub: "Facultatif. L'IA s'en sert pour t'encourager au bon moment.",
+    placeholder: 'ex : être plus sec cet été, avoir plus d\'énergie en cours, reprendre le foot sans être essoufflé',
+  },
+
+  /* ---------- 3. Activité ---------- */
+  {
+    key: 'daily', kind: 'choice', section: 'activité',
     title: () => 'ta journée type, <em>hors sport</em> ?',
     options: [
       { v: 'assis', em: '💻', t: 'Plutôt assis', s: 'bureau, cours, télétravail' },
@@ -35,14 +67,26 @@ const STEPS = [
     ],
   },
   {
-    key: 'dayText', kind: 'longtext', optional: true, max: 280,
+    key: 'steps', kind: 'choice', section: 'activité',
+    title: () => 'tu fais combien de pas par jour ?',
+    sub: "Regarde dans l'app Santé de ton iPhone (onglet Résumé → Pas), en moyenne.",
+    options: [
+      { v: 'lt5', em: '🐌', t: 'Moins de 5 000' },
+      { v: '5to8', em: '🚶', t: '5 000 à 8 000' },
+      { v: '8to12', em: '🚶‍♂️', t: '8 000 à 12 000' },
+      { v: 'gt12', em: '🏃', t: 'Plus de 12 000' },
+      { v: 'unknown', em: '🤷', t: 'Je ne sais pas' },
+    ],
+  },
+  {
+    key: 'dayText', kind: 'longtext', optional: true, max: 280, section: 'activité',
     title: () => 'raconte ta journée type',
-    sub: 'En quelques mots : ton taf ou tes cours, tes trajets, tes horaires, quand tu manges…',
+    sub: 'Ton taf ou tes cours, tes trajets, tes horaires, quand tu manges…',
     placeholder: 'ex : étudiant, en cours assis de 9h à 17h, 20 min de marche pour y aller, je bosse debout au resto le samedi',
   },
   {
-    key: 'trainFreq', kind: 'choice',
-    title: () => 'tu t\'entraînes combien de fois par semaine ?',
+    key: 'trainFreq', kind: 'choice', section: 'activité',
+    title: () => "tu t'entraînes combien de fois par semaine ?",
     options: [
       { v: 0, em: '🛋️', t: 'Jamais ou presque' },
       { v: 1, em: '🙂', t: '1 à 2 fois' },
@@ -51,7 +95,7 @@ const STEPS = [
     ],
   },
   {
-    key: 'training', kind: 'multi', skip: () => a.trainFreq === 0,
+    key: 'training', kind: 'multi', section: 'activité', skip: () => a.trainFreq === 0,
     title: () => 'tu fais quoi comme sport ?',
     sub: 'Plusieurs choix possibles.',
     options: [
@@ -62,31 +106,53 @@ const STEPS = [
     ],
   },
   {
-    key: 'trainText', kind: 'longtext', optional: true, max: 280,
-    title: () => a.trainFreq === 0 ? 'tu bouges autrement ?' : 'décris ton entraînement',
-    sub: () => a.trainFreq === 0 ? 'Marche, vélo, escaliers, ménage… tout compte.' : 'Type de séances, durée, intensité, nombre de pas par jour…',
-    placeholder: () => a.trainFreq === 0 ? 'ex : je marche 30 min par jour, vélo pour aller au taf' : 'ex : muscu 4x/semaine 1h15 en push/pull/legs, foot le dimanche, environ 8 000 pas par jour',
+    key: 'trainText', kind: 'longtext', optional: true, max: 280, section: 'activité',
+    title: () => (a.trainFreq === 0 ? 'tu bouges autrement ?' : 'décris tes séances'),
+    sub: () => (a.trainFreq === 0 ? 'Marche, vélo, escaliers, ménage… tout compte.' : 'Type de séances, durée, intensité, à quel moment de la journée…'),
+    placeholder: () => (a.trainFreq === 0 ? 'ex : je marche 30 min par jour, vélo pour aller au taf' : 'ex : muscu 4x/semaine 1h15 le soir en push/pull/legs, foot le dimanche matin'),
   },
+
+  /* ---------- 4. Alimentation ---------- */
   {
-    key: 'goal', kind: 'choice',
-    title: () => 'ton objectif ?',
+    key: 'diet', kind: 'choice', section: 'alimentation',
+    title: () => 'tu manges plutôt…',
     options: [
-      { v: 'lose', em: '📉', t: 'Perdre du gras' },
-      { v: 'maintain', em: '⚖️', t: 'Garder mon poids', s: 'et manger mieux' },
-      { v: 'gain', em: '📈', t: 'Prendre du muscle' },
+      { v: 'omni', em: '🍗', t: 'De tout' },
+      { v: 'flexi', em: '🥗', t: 'Peu de viande', s: 'flexitarien' },
+      { v: 'pesco', em: '🐟', t: 'Poisson mais pas de viande' },
+      { v: 'vege', em: '🥚', t: 'Végétarien' },
+      { v: 'vegan', em: '🌱', t: 'Vegan' },
     ],
   },
   {
-    key: 'pace', kind: 'choice', skip: () => a.goal === 'maintain',
-    title: () => 'à quel rythme ?',
-    options: () => a.goal === 'lose'
-      ? [{ v: 'slow', em: '🐢', t: 'Tranquille', s: '≈ 0,3 à 0,5 kg / semaine, facile à tenir' }, { v: 'fast', em: '🐇', t: 'Soutenu', s: '≈ 0,5 à 0,8 kg / semaine, plus dur' }]
-      : [{ v: 'slow', em: '🐢', t: 'Propre', s: 'peu de gras pris, plus lent' }, { v: 'fast', em: '🐇', t: 'Rapide', s: 'plus de poids, un peu plus de gras' }],
+    key: 'restrictions', kind: 'multi', section: 'alimentation',
+    title: () => 'des restrictions ou allergies ?',
+    sub: 'Plusieurs choix possibles.',
+    options: [
+      { v: 'none', em: '✅', t: 'Aucune', exclusive: true },
+      { v: 'halal', em: '🕌', t: 'Halal' },
+      { v: 'noPork', em: '🐖', t: 'Sans porc' },
+      { v: 'noLactose', em: '🥛', t: 'Sans lactose' },
+      { v: 'noGluten', em: '🌾', t: 'Sans gluten' },
+      { v: 'noNuts', em: '🥜', t: 'Allergie aux fruits à coque' },
+      { v: 'other', em: '⚠️', t: 'Autre', s: 'précise plus loin' },
+    ],
   },
   {
-    key: 'appetite', kind: 'choice',
-    title: () => 'et toi, la bouffe ?',
-    sub: 'Pas de jugement, c\'est pour adapter tes objectifs.',
+    key: 'meals', kind: 'choice', section: 'alimentation',
+    title: () => 'tu manges combien de fois par jour ?',
+    sub: 'Collations comprises, en général.',
+    options: [
+      { v: 2, em: '2️⃣', t: '2 fois', s: 'je saute souvent un repas' },
+      { v: 3, em: '3️⃣', t: '3 fois' },
+      { v: 4, em: '4️⃣', t: '4 fois', s: '3 repas + 1 collation' },
+      { v: 5, em: '5️⃣', t: '5 fois ou plus' },
+    ],
+  },
+  {
+    key: 'appetite', kind: 'choice', section: 'alimentation',
+    title: () => 'et ton appétit ?',
+    sub: "Pas de jugement, c'est pour adapter tes objectifs.",
     options: [
       { v: 'petit', em: '🥄', t: 'Petit appétit', s: 'je cale vite' },
       { v: 'normal', em: '🍽️', t: 'Normal' },
@@ -94,8 +160,34 @@ const STEPS = [
       { v: 'grignote', em: '🍪', t: 'Je grignote beaucoup' },
     ],
   },
-  { key: 'result', kind: 'result' },
+  {
+    key: 'cooking', kind: 'choice', section: 'alimentation',
+    title: () => 'tu cuisines ?',
+    options: [
+      { v: 'never', em: '🥡', t: 'Presque jamais', s: 'cantine, tout prêt, livraison' },
+      { v: 'simple', em: '🍳', t: 'Des trucs simples', s: '15 min max' },
+      { v: 'often', em: '👨‍🍳', t: 'Souvent, avec plaisir' },
+    ],
+  },
+  {
+    key: 'foodText', kind: 'longtext', optional: true, max: 280, section: 'alimentation',
+    title: () => "ce que tu aimes, ce que tu n'aimes pas",
+    sub: "Tes plats préférés, ce que tu détestes, ce qui te fait craquer… L'IA s'en sert pour ses idées de repas.",
+    placeholder: 'ex : fan de riz, poulet, pâtes et skyr, je déteste le poisson, je craque sur le chocolat le soir',
+  },
+
+  /* ---------- 5. Santé ---------- */
+  {
+    key: 'healthText', kind: 'longtext', optional: true, max: 280, section: 'santé',
+    title: () => 'un truc à savoir côté santé ?',
+    sub: "Facultatif : blessure, diabète, grossesse, traitement… L'IA en tient compte pour ne pas te conseiller à côté. Ça ne remplace pas un médecin.",
+    placeholder: 'ex : rien de spécial / tendinite au genou / diabète de type 1',
+  },
+
+  { key: 'result', kind: 'result', section: '' },
 ];
+
+const SECTIONS = ['toi', 'objectif', 'activité', 'alimentation', 'santé'];
 
 const visible = () => STEPS.filter((s) => !s.skip?.());
 
@@ -115,8 +207,9 @@ export function renderOnboarding(root, done) {
   let body = '';
   if (st.kind === 'result') body = resultHtml();
   else {
+    const si = SECTIONS.indexOf(st.section);
     const sub = typeof st.sub === 'function' ? st.sub() : st.sub;
-    body = `<h1>${plain(st.title())}</h1>${sub ? `<p class="ob-sub">${sub}</p>` : ''}`;
+    body = `${si >= 0 ? `<div class="ob-section">${si + 1} / ${SECTIONS.length} · ${st.section}</div>` : ''}<h1>${plain(st.title())}</h1>${sub ? `<p class="ob-sub">${sub}</p>` : ''}`;
     if (st.kind === 'longtext') {
       const ph = typeof st.placeholder === 'function' ? st.placeholder() : st.placeholder;
       const v = a[st.key] || '';
@@ -134,7 +227,7 @@ export function renderOnboarding(root, done) {
   }
 
   const needsNext = st.kind !== 'choice';
-  const nextLabel = st.kind === 'result' ? `c'est parti ✦` : st.optional && !a[st.key] ? 'passer' : 'continuer';
+  const nextLabel = st.kind === 'result' ? `c'est parti ✦` : st.kind === 'intro' ? 'commencer' : st.optional && (a[st.key] == null || a[st.key] === '') ? 'passer' : 'continuer';
 
   root.innerHTML = `
     <div class="ob">
@@ -166,8 +259,12 @@ export function renderOnboarding(root, done) {
     b.onclick = () => {
       const v = JSON.parse(b.dataset.v);
       if (st.kind === 'multi') {
-        const arr = new Set(a[st.key] || []);
-        arr.has(v) ? arr.delete(v) : arr.add(v);
+        const opts = typeof st.options === 'function' ? st.options() : st.options;
+        const excl = opts.filter((o) => o.exclusive).map((o) => o.v);
+        let arr = new Set(a[st.key] || []);
+        if (arr.has(v)) arr.delete(v);
+        else if (excl.includes(v)) arr = new Set([v]);
+        else { excl.forEach((x) => arr.delete(x)); arr.add(v); }
         a[st.key] = [...arr];
         rerender();
       } else {
@@ -180,17 +277,19 @@ export function renderOnboarding(root, done) {
 
   const next = $('#ob-next', root);
   if (next) next.onclick = () => {
+    if (st.kind === 'intro') return go(1);
     if (st.kind === 'text' || st.kind === 'longtext') { a[st.key] = input.value.trim().slice(0, st.max || 60); return go(1); }
     if (st.kind === 'number') {
       const v = num(input.value);
+      if (st.optional && !input.value.trim()) { a[st.key] = null; return go(1); }
       if (v == null || v < st.min || v > st.max) { input.parentElement.animate([{ transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'none' }], { duration: 250 }); return; }
       a[st.key] = st.decimal ? Math.round(v * 10) / 10 : Math.round(v);
       return go(1);
     }
-    if (st.kind === 'multi') { if (!(a[st.key] || []).length) a[st.key] = ['autre']; return go(1); }
+    if (st.kind === 'multi') { if (!(a[st.key] || []).length) a[st.key] = st.key === 'restrictions' ? ['none'] : ['autre']; return go(1); }
     if (st.kind === 'result') {
       if (a.trainFreq === 0) a.training = [];
-      if (a.goal === 'maintain') a.pace = null;
+      if (a.goal === 'maintain') { a.pace = null; a.targetWeight = null; }
       const t = computeTargets(a);
       setProfile(a);
       setGoals({ kcal: t.kcal, prot: t.prot, carb: t.carb, fat: t.fat, fiber: t.fiber, custom: false });
@@ -221,6 +320,7 @@ function resultHtml() {
         <li>Dépense au repos : <b>${fmt(t.bmr)} kcal</b> (formule de Mifflin-St Jeor)</li>
         <li>Avec ton activité (×${String(t.factor).replace('.', ',')}) : <b>${fmt(t.tdee)} kcal</b> pour être stable</li>
         <li>Protéines : ${String(t.protPerKg.toFixed(1)).replace('.', ',')} g par kg de poids</li>
+        ${t.weeks ? `<li>Objectif ${String(a.targetWeight).replace('.', ',')} kg : environ <b>${t.weeks} semaines</b> à ce rythme</li>` : ''}
       </ul>
       <p class="small muted" style="margin:10px 0 0">C'est une estimation de départ : ajuste après 2-3 semaines selon l'évolution de ton poids. Tu peux tout modifier dans ton profil.</p>
     </div>
