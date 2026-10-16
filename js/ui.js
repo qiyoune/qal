@@ -107,13 +107,15 @@ export function splash() {
   if (seen) { el.remove(); return Promise.resolve(); }
   const t0 = performance.now();
   const D = 750;
+  // on attend que les polices soient là (2,5 s max) pour ne pas montrer un écran à moitié stylé
+  const ready = Promise.race([document.fonts?.ready || Promise.resolve(), new Promise((r) => setTimeout(r, 2500))]);
   return new Promise((res) => {
     const tick = (t) => {
       const p = Math.min(1, (t - t0) / D);
       numEl.textContent = String(Math.round(p * 100)).padStart(3, '0');
       steps.forEach((s, i) => s.classList.toggle('on', p >= i / steps.length));
       if (p < 1) requestAnimationFrame(tick);
-      else { el.classList.add('done'); setTimeout(() => el.remove(), 600); res(); }
+      else ready.then(() => { el.classList.add('done'); setTimeout(() => el.remove(), 600); res(); });
     };
     requestAnimationFrame(tick);
   });

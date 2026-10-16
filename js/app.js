@@ -137,11 +137,17 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
   // Nouvelle version en ligne → on recharge une fois pour l'afficher tout de suite
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;
+  // Au démarrage, les fichiers viennent déjà du réseau (donc à jour) : pas besoin de recharger.
+  // Si une version arrive pendant que l'appli est ouverte, on recharge en douce quand tu la quittes.
+  const startedAt = performance.now();
+  let pending = false;
+  const doReload = () => { if (reloaded) return; reloaded = true; location.reload(); };
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (!hadController || reloaded) return;
-    reloaded = true;
-    location.reload();
+    if (performance.now() - startedAt < 20000) return;
+    if (document.visibilityState === 'hidden') doReload(); else pending = true;
   });
+  document.addEventListener('visibilitychange', () => { if (pending && document.visibilityState === 'hidden') doReload(); });
   navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {
     reg.update().catch(() => {});
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
