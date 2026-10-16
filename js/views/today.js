@@ -3,7 +3,6 @@ import { esc, icons, dayLabel, addDays, dateStr, plain, $ } from '../ui.js';
 import { MEALS, entriesFor, getState } from '../store.js';
 import { totals, scale, fmt } from '../nutrition.js';
 import { starPath, burst } from '../fx.js';
-import { weightCardHtml, openWeightSheet } from '../weight.js';
 
 const STAR = starPath(1, 0.4);
 const HALO = starPath(1, 0.3);
@@ -51,7 +50,7 @@ export function renderToday(root, ui, nav) {
         <div class="label" id="d-label">${dayLabel(ui.date)}</div>
         <button id="d-next" aria-label="Jour suivant" ${isToday ? 'disabled' : ''}>${icons.next}</button>
       </div>
-      <button class="icon-btn" id="go-scan" aria-label="Scanner un code-barres">${icons.barcode}</button>
+      <button class="icon-btn" id="go-settings" aria-label="Options">${icons.gear}</button>
     </header>
 
     <section class="hero-star section ${over ? 'over' : ''}" aria-label="${fmt(Math.abs(left))} kcal ${over ? 'au-dessus de ton objectif' : 'restantes'}">
@@ -82,8 +81,6 @@ export function renderToday(root, ui, nav) {
       ${macro('fat', 'fat', 'lipides')}
     </div>
 
-    ${isToday ? weightCardHtml() : ''}
-
     ${meals}
 
 `;
@@ -92,8 +89,7 @@ export function renderToday(root, ui, nav) {
 
   $('#d-prev', root).onclick = () => { ui.date = addDays(ui.date, -1); nav.render(); };
   $('#d-next', root).onclick = () => { if (!isToday) { ui.date = addDays(ui.date, 1); nav.render(); } };
-  $('#go-scan', root).onclick = () => nav.openAdd(null, 'scan');
-  $('#w-card', root)?.addEventListener('click', () => openWeightSheet({ onChange: () => nav.render() }));
+  $('#go-settings', root).onclick = () => nav.go('#/settings');
   root.querySelectorAll('[data-add]').forEach((b) => (b.onclick = () => nav.openAdd(b.dataset.add, 'search')));
   root.querySelectorAll('[data-entry]').forEach((b) => (b.onclick = () => nav.editEntry(b.dataset.entry)));
 }

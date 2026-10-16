@@ -7,6 +7,7 @@ import { renderProfile } from './views/profile.js';
 import { renderMicros } from './views/micros.js';
 import { renderRecipes, renderRecipeEditor } from './views/recipes.js';
 import { renderChat } from './views/chat.js';
+import { renderSettings } from './views/settings.js';
 import { startOnboarding, renderOnboarding } from './views/onboarding.js';
 import { openFoodSheet } from './sheets.js';
 import { loadCiqual } from './foods.js';
@@ -58,6 +59,7 @@ function render() {
   else if (r === '#/recipes') renderRecipes(root, ui, nav);
   else if (r === '#/recipe') renderRecipeEditor(root, ui, nav);
   else if (r === '#/chat') renderChat(root, ui, nav);
+  else if (r === '#/settings') renderSettings(root, ui, nav);
   else renderToday(root, ui, nav);
   renderTabbar(r);
 }

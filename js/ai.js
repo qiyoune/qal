@@ -215,5 +215,5 @@ function offlineReply() {
   const { t } = totals(entriesFor(dateStr()));
   const left = Math.round(g.kcal - t.kcal);
   const pLeft = Math.round(g.prot - t.prot);
-  return `L'IA n'est pas encore branchée : ajoute ta clé Gemini gratuite dans Profil → IA ✦ En attendant, voilà ta journée : ${left >= 0 ? `il te reste ${fmt(left)} kcal` : `tu es ${fmt(-left)} kcal au-dessus`}, et ${pLeft > 0 ? `${fmt(pLeft)} g de protéines à aller chercher` : 'ton objectif de protéines est atteint'}.`;
+  return `L'IA n'est pas encore branchée : ajoute ta clé Gemini gratuite dans Options → IA ✦ En attendant, voilà ta journée : ${left >= 0 ? `il te reste ${fmt(left)} kcal` : `tu es ${fmt(-left)} kcal au-dessus`}, et ${pLeft > 0 ? `${fmt(pLeft)} g de protéines à aller chercher` : 'ton objectif de protéines est atteint'}.`;
 }

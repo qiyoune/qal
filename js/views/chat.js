@@ -47,7 +47,7 @@ export function renderChat(root, ui, nav) {
           <div class="chat-big">✦</div>
           <h2>${name ? 'salut ' + esc(name.toLowerCase()) : 'salut'}</h2>
           <p class="muted">Je connais ton profil, tes objectifs et ce que tu as mangé aujourd'hui. Demande-moi ce que tu veux.</p>
-          ${isOnline() ? '' : '<p class="small muted">L\'IA n\'est pas encore branchée : ajoute ta clé Gemini gratuite dans <a href="#/profile">Profil → IA</a>.</p>'}
+          ${isOnline() ? '' : '<p class="small muted">L\'IA n\'est pas encore branchée : ajoute ta clé Gemini gratuite dans <a href="#/settings">Options → IA</a>.</p>'}
           <div class="chat-sugg">${SUGGESTIONS.map((s) => `<button class="chip" data-s="${esc(s)}">${esc(s)}</button>`).join('')}</div>
         </div>`;
       list.querySelectorAll('[data-s]').forEach((b) => (b.onclick = () => send(b.dataset.s)));
@@ -93,7 +93,7 @@ export function renderChat(root, ui, nav) {
       const text = reply.text || (proposals.length ? 'Voilà ce que je propose, valide si c\'est bon :' : '…');
       msgs.push({ role: 'assistant', text, actions: proposals.map((p) => ({ p, status: 'pending' })), at: Date.now() });
     } catch (e) {
-      const text = e.badKey ? 'Ta clé Gemini est refusée. Vérifie-la dans Profil → IA.'
+      const text = e.badKey ? 'Ta clé Gemini est refusée. Vérifie-la dans Options → IA.'
         : e.quota ? 'Limite gratuite de Gemini atteinte pour le moment. Réessaie dans une minute (ou demain si c\'est la limite du jour).'
         : 'Je n\'arrive pas à joindre l\'IA. Vérifie ta connexion et réessaie.';
       const detail = e.detail ? `\n(Réponse de Google : ${e.detail})` : e.message && !e.badKey && !e.quota ? `\n(${e.message})` : '';
