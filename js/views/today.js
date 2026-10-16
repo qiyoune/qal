@@ -3,6 +3,7 @@ import { esc, icons, dayLabel, addDays, dateStr, plain, $ } from '../ui.js';
 import { MEALS, entriesFor, getState } from '../store.js';
 import { totals, scale, fmt } from '../nutrition.js';
 import { starPath, burst } from '../fx.js';
+import { weightCardHtml, openWeightSheet } from '../weight.js';
 
 const STAR = starPath(1, 0.4);
 const HALO = starPath(1, 0.3);
@@ -81,6 +82,8 @@ export function renderToday(root, ui, nav) {
       ${macro('fat', 'fat', 'lipides')}
     </div>
 
+    ${isToday ? weightCardHtml() : ''}
+
     ${meals}
 
 `;
@@ -90,6 +93,7 @@ export function renderToday(root, ui, nav) {
   $('#d-prev', root).onclick = () => { ui.date = addDays(ui.date, -1); nav.render(); };
   $('#d-next', root).onclick = () => { if (!isToday) { ui.date = addDays(ui.date, 1); nav.render(); } };
   $('#go-scan', root).onclick = () => nav.openAdd(null, 'scan');
+  $('#w-card', root)?.addEventListener('click', () => openWeightSheet({ onChange: () => nav.render() }));
   root.querySelectorAll('[data-add]').forEach((b) => (b.onclick = () => nav.openAdd(b.dataset.add, 'search')));
   root.querySelectorAll('[data-entry]').forEach((b) => (b.onclick = () => nav.editEntry(b.dataset.entry)));
 }

@@ -15,6 +15,7 @@ const empty = () => ({
   goals: null,     // { kcal, prot, carb, fat, fiber, custom, updatedAt }
   entries: {},     // id -> { id, date, meal, name, brand, grams, per100, source, code, img, updatedAt, deleted }
   foods: {},       // key -> { key, name, brand, per100, source, code, img, serving, count, usedAt, custom, updatedAt, deleted }
+  weights: {},     // date -> { date, kg, updatedAt, deleted }
   recipes: {},     // id -> { id, name, portions, ingredients: [{ name, brand, grams, per100, source, code }], updatedAt, deleted }
   meta: { deviceId: uid(), createdAt: Date.now() },
 });
@@ -142,6 +143,42 @@ export function findFoodByCode(code) {
   return f && !f.deleted ? f : null;
 }
 
+/* ---------- Poids ---------- */
+export function setWeight(date, kg) {
+  state.weights = state.weights || {};
+  state.weights[date] = { date, kg: Math.round(kg * 10) / 10, updatedAt: Date.now() };
+  // le profil suit le dernier poids (pour les calculs)
+  const last = weightsList().slice(-1)[0];
+  if (last && state.profile) state.profile = { ...state.profile, weight: last.kg, updatedAt: Date.now() };
+  persist();
+}
+export function deleteWeight(date) {
+  if (!state.weights?.[date]) return;
+  state.weights[date] = { date, deleted: true, updatedAt: Date.now() };
+  persist();
+}
+export function weightsList() {
+  return Object.values(state.weights || {}).filter((w) => !w.deleted && w.kg).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/* ---------- Favoris ---------- */
+export function isFav(food) {
+  const f = state.foods[foodKey(food)];
+  return !!(f && !f.deleted && f.fav);
+}
+export function toggleFav(food) {
+  const { _n, lastGrams, count, usedAt, ...clean } = food;
+  const key = foodKey(clean);
+  const prev = state.foods[key] || {};
+  const fav = !(prev.fav && !prev.deleted);
+  state.foods[key] = { ...prev, ...clean, key, fav, deleted: false, usedAt: prev.usedAt || Date.now(), updatedAt: Date.now() };
+  persist();
+  return fav;
+}
+export function favFoods() {
+  return Object.values(state.foods).filter((f) => !f.deleted && f.fav && f.name).sort((a, b) => a.name.localeCompare(b.name));
+}
+
 /* ---------- Recettes ---------- */
 export function listRecipes() {
   return Object.values(state.recipes || {}).filter((r) => !r.deleted && r.name).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
@@ -204,6 +241,7 @@ export function merge(a, b) {
     entries: prune(mergeMap(a.entries, b.entries)),
     foods: prune(mergeMap(a.foods, b.foods)),
     recipes: prune(mergeMap(a.recipes, b.recipes)),
+    weights: prune(mergeMap(a.weights, b.weights)),
     meta: a.meta,
   };
 }

@@ -1,6 +1,6 @@
 // Ajouter un aliment : scanner, rechercher, récents, recettes
 import { esc, icons, $, toast, sheetOpen } from '../ui.js';
-import { MEALS, recentFoods, customFoods, findFoodByCode, listRecipes, recipeAsFood } from '../store.js';
+import { MEALS, recentFoods, customFoods, findFoodByCode, listRecipes, recipeAsFood, favFoods } from '../store.js';
 import { fmt, scale } from '../nutrition.js';
 import { searchCiqual, searchOFF, getProduct, norm, loadCiqual } from '../foods.js';
 import { Scanner } from '../scanner.js';
@@ -39,7 +39,7 @@ export function renderAdd(root, ui, nav) {
       ${MEALS.map((m) => `<button class="chip ${m.id === ui.addMeal ? 'on' : ''}" data-meal="${m.id}">${m.label}</button>`).join('')}
     </div>
     <div class="tabs section">
-      ${[['scan', 'scanner'], ['search', 'chercher'], ['recent', 'récents'], ['recipes', 'recettes']].map(([id, l]) => `<button class="tab ${tab === id ? 'on' : ''}" data-tab="${id}">${l}</button>`).join('')}
+      ${[['scan', 'scanner'], ['search', 'chercher'], ['recent', 'favoris'], ['recipes', 'recettes']].map(([id, l]) => `<button class="tab ${tab === id ? 'on' : ''}" data-tab="${id}">${l}</button>`).join('')}
     </div>
     <div id="a-body" class="section"></div>`;
 
@@ -143,7 +143,7 @@ export function renderAdd(root, ui, nav) {
         res.innerHTML = `<p class="muted small center" style="margin-top:28px">Les <b>aliments bruts</b> viennent de la table officielle Ciqual (ANSES).<br>Les <b>produits du commerce</b> viennent d'Open Food Facts.</p>`;
         return;
       }
-      const mine = [...listRecipes().map(recipeAsFood), ...recentFoods(200).filter((f) => f.source !== 'recette')].filter((f) => nq.split(' ').every((w) => norm(f.name + ' ' + (f.brand || '')).includes(w))).slice(0, 5);
+      const mine = [...favFoods(), ...listRecipes().map(recipeAsFood), ...recentFoods(200).filter((f) => f.source !== 'recette' && !f.fav)].filter((f) => nq.split(' ').every((w) => norm(f.name + ' ' + (f.brand || '')).includes(w))).slice(0, 5);
       const raw = await searchCiqual(q, 20);
       if (norm(input.value) !== nq) return;
       lists.mine = mine; lists.raw = raw; lists.off = offState.q === nq ? offState.items : [];
@@ -187,13 +187,19 @@ export function renderAdd(root, ui, nav) {
     return;
   }
 
-  /* ---------- Récents ---------- */
+  /* ---------- Favoris + récents ---------- */
   if (tab === 'recent') {
-    const items = recentFoods(60);
-    lists.recent = items;
-    body.innerHTML = items.length
-      ? `<div class="card" style="padding:4px 16px">${items.map((f, i) => resultRow(f, i, 'recent')).join('')}</div>`
-      : `<p class="muted center" style="margin-top:30px">Tes aliments apparaîtront ici dès que tu en auras ajouté.</p>`;
+    const favs = favFoods();
+    const favKeys = new Set(favs.map((f) => f.key));
+    const recent = recentFoods(40).filter((f) => !favKeys.has(f.key));
+    lists.fav = favs; lists.recent = recent;
+    body.innerHTML = `
+      <div class="list-title"><span>favoris ✦</span></div>
+      ${favs.length ? `<div class="card" style="padding:4px 16px">${favs.map((f, i) => resultRow(f, i, 'fav')).join('')}</div>`
+        : '<p class="small muted" style="margin:4px 4px 0">Touche l\'étoile ✦ sur la fiche d\'un aliment pour l\'épingler ici.</p>'}
+      <div class="list-title section"><span>récents</span></div>
+      ${recent.length ? `<div class="card" style="padding:4px 16px">${recent.map((f, i) => resultRow(f, i, 'recent')).join('')}</div>`
+        : '<p class="small muted" style="margin:4px 4px 0">Tes aliments apparaîtront ici dès que tu en auras ajouté.</p>'}`;
     bindResults(body);
     return;
   }

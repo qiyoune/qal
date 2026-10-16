@@ -1,9 +1,9 @@
 // Chat IA : construit le contexte de l'utilisateur et l'envoie au proxy IA.
 // La clé API ne doit JAMAIS être dans l'appli : elle reste dans le proxy (serveur).
 import { AI_ENDPOINT } from './config.js';
-import { getState, entriesFor, MEALS } from './store.js';
+import { getState, entriesFor, MEALS, weightsList } from './store.js';
 import { totals, scale, fmt } from './nutrition.js';
-import { dateStr } from './ui.js';
+import { dateStr, addDays } from './ui.js';
 
 const KEY = 'qal:chat';
 
@@ -57,6 +57,18 @@ export function buildContext(date = dateStr()) {
     const items = entries.filter((e) => e.meal === m.id);
     if (items.length) lines.push(`- ${m.label} (meal=${m.id}) : ${items.map((e) => `[id=${e.id}] ${e.name} ${fmt(e.grams)} g (${fmt(scale(e.per100, e.grams).kcal)} kcal)`).join(', ')}`);
   }
+  // 7 derniers jours (jours notés uniquement) pour les bilans
+  const week = [];
+  for (let i = 1; i <= 7; i++) {
+    const d = addDays(date, -i);
+    const es = entriesFor(d);
+    if (!es.length) continue;
+    const tt = totals(es).t;
+    week.push(`${d} : ${fmt(tt.kcal)} kcal, P ${fmt(tt.prot)} g, G ${fmt(tt.carb)} g, L ${fmt(tt.fat)} g, fibres ${fmt(tt.fiber)} g (${es.length} aliments)`);
+  }
+  lines.push(week.length ? `7 jours précédents (jours notés) :\n${week.join('\n')}` : '7 jours précédents : aucun repas noté.');
+  const ws = weightsList().slice(-10);
+  if (ws.length) lines.push(`Pesées récentes : ${ws.map((w) => `${w.date} ${w.kg} kg`).join(', ')}.`);
   return lines.join('\n');
 }
 
@@ -80,7 +92,13 @@ Tu peux agir sur l'appli avec tes outils : ajouter des aliments au journal (add_
 - Utilise-les quand l'utilisateur dit ce qu'il a mangé ou demande de modifier son journal ou de créer une recette. Il validera lui-même avant que ce soit appliqué.
 - Pour chaque aliment, donne un nom générique en français façon table Ciqual, aliment principal en premier puis précisions (ex : "riz basmati cuit", "poulet poitrine cuit", "pomme crue", "huile olive", "pates alimentaires cuites"), et une quantité en grammes réaliste (1 oeuf ≈ 55 g, 1 c. à soupe d'huile ≈ 10 g). N'invente jamais les calories : l'appli les calcule.
 - Choisis le repas (breakfast, lunch, snack, dinner) selon ce qu'il dit, sinon selon l'heure.
-- Accompagne toujours l'action d'une phrase courte.`;
+- Accompagne toujours l'action d'une phrase courte.
+
+Photos :
+- Photo d'assiette ou de plat : identifie chaque aliment visible, estime les grammes honnêtement (huile, sauce, fromage : ne les oublie pas, et plutôt un peu au-dessus qu'en dessous), puis propose add_foods. Dis en une phrase ce que tu as vu et que l'utilisateur peut corriger les grammes.
+- Photo d'étiquette ou de tableau nutritionnel : lis les valeurs POUR 100 g et utilise create_food (nom du produit, marque si visible, code-barres si visible).
+
+Bilan de la semaine : appuie-toi sur les 7 jours précédents et les pesées du contexte. Moyennes, régularité, protéines, une ou deux pistes concrètes. Ton encourageant, jamais culpabilisant.`;
 
 const GAPI = 'https://generativelanguage.googleapis.com/v1beta';
 
@@ -90,6 +108,7 @@ const TOOLS = [{ functionDeclarations: [
   { name: 'add_foods', description: 'Ajoute des aliments au journal', parameters: { type: 'OBJECT', properties: { meal: MEAL, date: { type: 'STRING', description: 'YYYY-MM-DD, aujourd\'hui par défaut' }, items: ITEMS }, required: ['meal', 'items'] } },
   { name: 'update_entry', description: 'Modifie la quantité ou le repas d\'une entrée du journal', parameters: { type: 'OBJECT', properties: { id: { type: 'STRING' }, grams: { type: 'NUMBER' }, meal: MEAL }, required: ['id'] } },
   { name: 'delete_entry', description: 'Supprime une entrée du journal', parameters: { type: 'OBJECT', properties: { id: { type: 'STRING' } }, required: ['id'] } },
+  { name: 'create_food', description: 'Crée un aliment perso à partir d\'une étiquette nutritionnelle (valeurs pour 100 g)', parameters: { type: 'OBJECT', properties: { name: { type: 'STRING' }, brand: { type: 'STRING' }, kcal: { type: 'NUMBER' }, prot: { type: 'NUMBER' }, carb: { type: 'NUMBER' }, fat: { type: 'NUMBER' }, sugar: { type: 'NUMBER' }, fiber: { type: 'NUMBER' }, salt: { type: 'NUMBER' }, serving_grams: { type: 'NUMBER' }, barcode: { type: 'STRING' } }, required: ['name', 'kcal', 'prot', 'carb', 'fat'] } },
   { name: 'create_recipe', description: 'Crée une recette enregistrée', parameters: { type: 'OBJECT', properties: { name: { type: 'STRING' }, portions: { type: 'NUMBER' }, ingredients: ITEMS, preparation: { type: 'STRING', description: 'étapes de préparation' } }, required: ['name', 'portions', 'ingredients'] } },
 ] }];
 
@@ -132,7 +151,10 @@ async function googleError(r) {
 async function askGemini(key, history, context) {
   const body = JSON.stringify({
     systemInstruction: { parts: [{ text: `${SYSTEM}\n\n--- Contexte utilisateur ---\n${context}` }] },
-    contents: history.slice(-12).map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.text }] })),
+    contents: history.slice(-12).map((m) => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.text || 'Photo' }, ...(m.image ? [{ inlineData: { mimeType: 'image/jpeg', data: m.image.split(',')[1] } }] : [])],
+    })),
     tools: TOOLS,
     generationConfig: { temperature: 0.6, maxOutputTokens: 1200 },
   });

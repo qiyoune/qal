@@ -122,3 +122,53 @@ export function totals(entries) {
 
 export const fmt = (n, d = 0) => (n == null || isNaN(n) ? '–' : Number(n).toLocaleString('fr-FR', { maximumFractionDigits: d, minimumFractionDigits: 0 }));
 export const fmtSmart = (n) => (n == null ? '–' : n < 10 ? fmt(n, 1) : fmt(n, 0));
+
+/* ---------- Poids : tendance et dépense réelle ---------- */
+// Moyenne mobile sur 7 jours (sur les pesées disponibles)
+export function movingAvg(list, days = 7) {
+  return list.map((w) => {
+    const t = new Date(w.date).getTime();
+    const win = list.filter((x) => { const d = (t - new Date(x.date).getTime()) / 864e5; return d >= 0 && d < days; });
+    return { date: w.date, avg: win.reduce((s, x) => s + x.kg, 0) / win.length };
+  });
+}
+
+// Pente (kg / jour) par régression linéaire
+function slope(points) {
+  const n = points.length;
+  if (n < 2) return 0;
+  const mx = points.reduce((s, p) => s + p.x, 0) / n;
+  const my = points.reduce((s, p) => s + p.y, 0) / n;
+  let num = 0, den = 0;
+  for (const p of points) { num += (p.x - mx) * (p.y - my); den += (p.x - mx) ** 2; }
+  return den ? num / den : 0;
+}
+
+/**
+ * Dépense réelle estimée à partir de ce que tu manges et de l'évolution de ton poids
+ * (21 derniers jours). Il faut au moins 6 pesées sur 14 jours et 10 jours de repas notés.
+ * dailyKcal : { 'YYYY-MM-DD': kcal } pour les jours suivis
+ */
+export function adaptiveEstimate(weights, dailyKcal, today) {
+  const end = new Date(today).getTime();
+  const from = end - 20 * 864e5;
+  const ws = weights.filter((w) => new Date(w.date).getTime() >= from);
+  const days = Object.entries(dailyKcal).filter(([d, k]) => new Date(d).getTime() >= from && k > 300);
+  if (ws.length < 6 || days.length < 10) return { ready: false, weighIns: ws.length, loggedDays: days.length };
+  const span = (new Date(ws[ws.length - 1].date) - new Date(ws[0].date)) / 864e5;
+  if (span < 13) return { ready: false, weighIns: ws.length, loggedDays: days.length };
+  const kgPerDay = slope(ws.map((w) => ({ x: new Date(w.date).getTime() / 864e5, y: w.kg })));
+  const intake = days.reduce((s, [, k]) => s + k, 0) / days.length;
+  const tdee = Math.round((intake - kgPerDay * 7700) / 10) * 10;
+  return { ready: true, tdee, intake: Math.round(intake), kgPerWeek: Math.round(kgPerDay * 7 * 100) / 100 };
+}
+
+// Nouvel objectif à partir d'une dépense réelle (garde protéines et lipides, ajuste les glucides)
+export function goalsFromTdee(tdee, profile, goals) {
+  let delta = 0;
+  if (profile.goal === 'lose') delta = profile.pace === 'fast' ? -0.2 : -0.12;
+  if (profile.goal === 'gain') delta = profile.pace === 'fast' ? 0.12 : 0.06;
+  const kcal = Math.max(profile.sex === 'f' ? 1200 : 1400, Math.round((tdee * (1 + delta)) / 10) * 10);
+  const carb = Math.max(50, Math.round((kcal - goals.prot * 4 - goals.fat * 9) / 4));
+  return { ...goals, kcal, carb, fiber: Math.round((kcal / 1000) * 14), custom: false };
+}

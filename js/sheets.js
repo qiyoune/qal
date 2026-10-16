@@ -1,6 +1,6 @@
 // Feuilles du bas : fiche aliment (quantité) et création d'aliment perso
 import { esc, num, icons, openSheet, closeSheet, toast, $ } from './ui.js';
-import { MEALS, addEntry, updateEntry, deleteEntry, saveCustomFood } from './store.js';
+import { MEALS, addEntry, updateEntry, deleteEntry, saveCustomFood, isFav, toggleFav } from './store.js';
 import { scale, fmt } from './nutrition.js';
 import { offAddUrl } from './foods.js';
 
@@ -28,6 +28,7 @@ export function openFoodSheet({ food, grams, meal, date, entryId, onDone, onCanc
         <h2>${esc(food.name)}</h2>
         <div class="small muted" style="margin-top:4px">${badge(food.source)}${esc(food.brand || '')}${food.quantity ? ' · ' + esc(food.quantity) : ''}</div>
       </div>
+      <button class="fav-btn ${isFav(food) ? 'on' : ''}" id="f-fav" aria-label="Favori" aria-pressed="${isFav(food)}">✦</button>
     </div>
 
     <div class="qty">
@@ -69,6 +70,12 @@ export function openFoodSheet({ food, grams, meal, date, entryId, onDone, onCanc
     save.disabled = !(g > 0);
   };
 
+  $('#f-fav', sheet).onclick = (e) => {
+    const on = toggleFav(food);
+    e.currentTarget.classList.toggle('on', on);
+    e.currentTarget.setAttribute('aria-pressed', on);
+    toast(on ? 'ajouté aux favoris ✦' : 'retiré des favoris');
+  };
   input.addEventListener('input', () => { g = num(input.value) || 0; update(); });
   input.addEventListener('focus', () => input.select());
   sheet.querySelectorAll('[data-step]').forEach((b) => (b.onclick = () => {

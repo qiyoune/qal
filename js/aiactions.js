@@ -1,7 +1,7 @@
 // Actions proposées par l'IA : on trouve les vrais aliments (Ciqual / tes aliments),
 // on affiche une carte, et rien n'est appliqué sans "valider".
 import { esc } from './ui.js';
-import { getState, MEALS, addEntry, updateEntry, deleteEntry, saveRecipe, recentFoods, customFoods, listRecipes, recipeAsFood } from './store.js';
+import { getState, MEALS, addEntry, updateEntry, deleteEntry, saveRecipe, saveCustomFood, recentFoods, customFoods, listRecipes, recipeAsFood } from './store.js';
 import { loadCiqual, norm } from './foods.js';
 import { scale, fmt } from './nutrition.js';
 import { dateStr, mealForNow } from './ui.js';
@@ -71,6 +71,11 @@ export async function resolveCalls(calls) {
       if (!e || e.deleted) continue;
       if (c.name === 'delete_entry') out.push({ type: 'delete', id: a.id, name: e.name, grams: e.grams, kcal: scale(e.per100, e.grams).kcal });
       else out.push({ type: 'update', id: a.id, name: e.name, from: { grams: e.grams, meal: e.meal }, to: { grams: a.grams ? grams(a.grams) : e.grams, meal: a.meal ? validMeal(a.meal) : e.meal }, per100: e.per100 });
+    } else if (c.name === 'create_food') {
+      const n = (v) => (v == null || isNaN(+v) ? null : Math.round(+v * 10) / 10);
+      out.push({ type: 'food', name: String(a.name || 'Produit').slice(0, 60), brand: String(a.brand || '').slice(0, 40), code: String(a.barcode || '').replace(/\D/g, ''),
+        per100: { kcal: n(a.kcal), prot: n(a.prot), carb: n(a.carb), fat: n(a.fat), sugar: n(a.sugar), fiber: n(a.fiber), salt: n(a.salt) },
+        serving: n(a.serving_grams) ? { grams: n(a.serving_grams), label: 'portion' } : null });
     } else if (c.name === 'create_recipe') {
       const ingredients = [];
       for (const it of a.ingredients || []) ingredients.push({ query: it.name, grams: grams(it.grams), food: clean(await findFood(it.name)) });
@@ -95,6 +100,15 @@ export function proposalHtml(p) {
     return `<div class="ac-title">modifier</div><ul><li><span>${esc(p.name)}</span><b>${fmt(p.from.grams)} → ${fmt(p.to.grams)} g${p.to.meal !== p.from.meal ? ` · ${esc(mealLabel(p.to.meal))}` : ''}</b></li></ul><div class="ac-total">${fmt(k)} kcal</div>`;
   }
   if (p.type === 'delete') return `<div class="ac-title">supprimer</div><ul><li><span>${esc(p.name)}</span><b>${fmt(p.grams)} g · ${fmt(p.kcal)} kcal</b></li></ul>`;
+  if (p.type === 'food') {
+    const v = p.per100;
+    return `<div class="ac-title">nouvel aliment : ${esc(p.name)}${p.brand ? ` · ${esc(p.brand)}` : ''}</div><ul>
+      <li><span>pour 100 g</span><b>${fmt(v.kcal)} kcal</b></li>
+      <li><span>protéines · glucides · lipides</span><b>${fmt(v.prot, 1)} · ${fmt(v.carb, 1)} · ${fmt(v.fat, 1)} g</b></li>
+      ${v.sugar != null || v.fiber != null || v.salt != null ? `<li><span>sucres · fibres · sel</span><b>${fmt(v.sugar, 1)} · ${fmt(v.fiber, 1)} · ${fmt(v.salt, 2)} g</b></li>` : ''}
+      ${p.code ? `<li><span>code-barres</span><b>${esc(p.code)}</b></li>` : ''}
+    </ul>`;
+  }
   if (p.type === 'recipe') {
     const ok = p.ingredients.filter((i) => i.food);
     const tot = ok.reduce((s, i) => s + (scale(i.food.per100, i.grams).kcal || 0), 0);
@@ -106,6 +120,7 @@ export function proposalHtml(p) {
 export function canApply(p) {
   if (p.type === 'add') return p.items.some((i) => i.food);
   if (p.type === 'recipe') return p.ingredients.some((i) => i.food);
+  if (p.type === 'food') return p.per100.kcal != null;
   return true;
 }
 
@@ -116,6 +131,10 @@ export function applyProposal(p) {
   }
   if (p.type === 'update') { updateEntry(p.id, { grams: p.to.grams, meal: p.to.meal }); return 'modifié ✦'; }
   if (p.type === 'delete') { deleteEntry(p.id); return 'supprimé'; }
+  if (p.type === 'food') {
+    saveCustomFood({ name: p.name, brand: p.brand, code: p.code, per100: p.per100, serving: p.serving });
+    return 'aliment enregistré ✦ (retrouve-le dans la recherche)';
+  }
   if (p.type === 'recipe') {
     saveRecipe({ name: p.name, portions: p.portions, preparation: p.preparation, ingredients: p.ingredients.filter((i) => i.food).map((i) => ({ ...i.food, grams: i.grams })) });
     return 'recette enregistrée ✦';
@@ -130,5 +149,6 @@ export function proposalSummary(p, status) {
   if (p.type === 'update') return `[action ${st} : ${p.name} → ${p.to.grams} g]`;
   if (p.type === 'delete') return `[action ${st} : suppression de ${p.name}]`;
   if (p.type === 'recipe') return `[action ${st} : recette ${p.name}]`;
+  if (p.type === 'food') return `[action ${st} : aliment ${p.name}]`;
   return '';
 }
