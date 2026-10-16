@@ -1,7 +1,7 @@
 {
   "name": "qal ✦ compteur de calories",
   "short_name": "qal",
-  "description": "Compteur de calories simple et précis, sans gamification.",
+  "description": "Compteur de calories IA simple et précis.",
   "lang": "fr",
   "start_url": "./",
   "scope": "./",

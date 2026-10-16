@@ -1,6 +1,6 @@
 # qal ✦
 
-Compteur de calories en web app (PWA) : simple, précis, sans gamification.
+Compteur de calories IA simple et précis, en web app (PWA).
 DA inspirée de [qiyoune.com](https://qiyoune.com).
 
 - **Scan de codes-barres** → [Open Food Facts](https://fr.openfoodfacts.org) (énorme base de produits français)
