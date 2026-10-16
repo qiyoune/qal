@@ -56,6 +56,14 @@ export function renderChat(root, ui, nav) {
       list.querySelectorAll('[data-s]').forEach((b) => (b.onclick = () => send(b.dataset.s)));
       return;
     }
+    setTimeout(() => list.querySelectorAll('[data-photo]').forEach((b) => (b.onclick = () => {
+      const card = b.closest('.action-card');
+      const [mi, ai] = (card?.dataset.idx || '').split(':');
+      const a = msgs[+mi]?.actions?.[+ai];
+      if (!a || a.status !== 'pending' || !a.p.photos?.length) return;
+      a.p.photoIdx = (a.p.photoIdx + 1) % (a.p.photos.length + 1); // le dernier cran = sans photo
+      saveChat(msgs); draw();
+    })), 0);
     setTimeout(() => list.querySelectorAll('[data-act]').forEach((b) => (b.onclick = () => {
       const [mi, ai, what] = b.dataset.act.split(':');
       const a = msgs[+mi]?.actions?.[+ai];
@@ -65,8 +73,8 @@ export function renderChat(root, ui, nav) {
       saveChat(msgs); draw();
     })), 0);
     list.innerHTML = msgs.map((m, mi) => `${m.image ? `<img class="msg-img" src="${m.image}" alt="photo envoyée" />` : ''}${m.text ? `<div class="msg ${m.role}${m.error ? ' error' : ''}">${esc(m.text).replace(/\n/g, '<br>')}</div>` : ''}${(m.actions || []).map((a, ai) => `
-      <div class="action-card ${a.status}">
-        ${proposalHtml(a.p)}
+      <div class="action-card ${a.status}" data-idx="${mi}:${ai}">
+        ${proposalHtml({ ...a.p, status: a.status })}
         ${a.status === 'pending'
           ? `<div class="ac-btns"><button class="btn btn-ghost btn-sm" data-act="${mi}:${ai}:no">annuler</button><button class="btn btn-primary btn-sm" data-act="${mi}:${ai}:ok" ${canApply(a.p) ? '' : 'disabled'}>valider</button></div>`
           : `<div class="ac-status">${a.status === 'done' ? '✓ ' + esc(a.done || 'fait') : 'annulé'}</div>`}

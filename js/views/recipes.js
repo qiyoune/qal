@@ -48,7 +48,7 @@ function openRecipe(id, ui, nav) {
     meal: ui.date === dateStr() ? mealForNow() : 'lunch',
     date: ui.date,
     onDone: () => { ui.justAdded = true; nav.go('#/'); },
-    extraHtml: (r.preparation ? `<div class="prep-block"><div class="about-label" style="margin-top:0">Préparation</div><p>${esc(r.preparation).replace(/\n/g, '<br>')}</p></div>` : ''),
+    extraHtml: (r.photoCredit && r.photo ? `<p class="small muted" style="margin:10px 2px 0">photo : ${esc(r.photoCredit)}</p>` : '') + (r.preparation ? `<div class="prep-block"><div class="about-label" style="margin-top:0">Préparation</div><p>${esc(r.preparation).replace(/\n/g, '<br>')}</p></div>` : ''),
     extra: [
       { label: 'modifier la recette', cls: 'btn-ghost', onClick: () => { ui.recipeDraft = JSON.parse(JSON.stringify(r)); nav.go('#/recipe'); } },
       { label: 'supprimer', cls: 'btn-danger', onClick: () => { if (confirm(`Supprimer « ${r.name} » ?`)) { deleteRecipe(id); toast('recette supprimée'); nav.render(); } } },
@@ -125,10 +125,10 @@ export function renderRecipeEditor(root, ui, nav) {
     $('#e-photo', root).addEventListener('change', async (e) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      try { d.photo = await photoToDataUrl(file); d.name = nameIn.value; d.preparation = prep.value; draw(); }
+      try { d.photo = await photoToDataUrl(file); d.photoCredit = ''; d.name = nameIn.value; d.preparation = prep.value; draw(); }
       catch { toast('photo illisible'); }
     });
-    $('#e-photo-del', root)?.addEventListener('click', (e) => { e.preventDefault(); d.photo = ''; d.name = nameIn.value; d.preparation = prep.value; draw(); });
+    $('#e-photo-del', root)?.addEventListener('click', (e) => { e.preventDefault(); d.photo = ''; d.photoCredit = ''; d.name = nameIn.value; d.preparation = prep.value; draw(); });
     prep.addEventListener('input', () => { d.preparation = prep.value; $('#e-prep-count', root).textContent = `${prep.value.length} / 3000`; });
     root.querySelectorAll('[data-p]').forEach((b) => (b.onclick = () => { d.portions = Math.max(1, Math.min(50, n + +b.dataset.p)); draw(); }));
     root.querySelectorAll('[data-del]').forEach((b) => (b.onclick = () => { d.ingredients.splice(+b.dataset.del, 1); draw(); }));

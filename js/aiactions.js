@@ -1,8 +1,9 @@
 // Actions proposées par l'IA : on trouve les vrais aliments (Ciqual / tes aliments),
 // on affiche une carte, et rien n'est appliqué sans "valider".
 import { esc } from './ui.js';
-import { getState, MEALS, setProfile, setGoals, addEntry, updateEntry, deleteEntry, saveRecipe, saveCustomFood, recentFoods, customFoods, listRecipes, recipeAsFood } from './store.js';
+import { getState, getRecipe, MEALS, setProfile, setGoals, addEntry, updateEntry, deleteEntry, saveRecipe, saveCustomFood, recentFoods, customFoods, listRecipes, recipeAsFood } from './store.js';
 import { loadCiqual, norm } from './foods.js';
+import { findDishPhotos, urlToDataUrl } from './photos.js';
 import { scale, fmt, computeTargets } from './nutrition.js';
 import { dateStr, mealForNow } from './ui.js';
 
@@ -82,7 +83,9 @@ export async function resolveCalls(calls) {
     } else if (c.name === 'create_recipe') {
       const ingredients = [];
       for (const it of a.ingredients || []) ingredients.push({ query: it.name, grams: grams(it.grams), food: clean(await findFood(it.name)) });
-      out.push({ type: 'recipe', name: String(a.name || 'Recette').slice(0, 60), portions: Math.max(1, Math.min(50, Math.round(+a.portions || 1))), preparation: String(a.preparation || '').slice(0, 3000), ingredients });
+      const name = String(a.name || 'Recette').slice(0, 60);
+      const photos = await findDishPhotos(a.photo_query || name).catch(() => []);
+      out.push({ type: 'recipe', name, portions: Math.max(1, Math.min(50, Math.round(+a.portions || 1))), preparation: String(a.preparation || '').slice(0, 3000), ingredients, photos, photoIdx: 0 });
     }
   }
   return out;
@@ -167,7 +170,9 @@ export function proposalHtml(p) {
   if (p.type === 'recipe') {
     const ok = p.ingredients.filter((i) => i.food);
     const tot = ok.reduce((s, i) => s + (scale(i.food.per100, i.grams).kcal || 0), 0);
-    return `<div class="ac-title">nouvelle recette : ${esc(p.name)}</div><ul>${p.ingredients.map(line).join('')}</ul><div class="ac-total">${fmt(tot / p.portions)} kcal / portion · ${p.portions} portion${p.portions > 1 ? 's' : ''}</div>${p.preparation ? `<p class="ac-prep">${esc(p.preparation).replace(/\n/g, '<br>')}</p>` : ''}`;
+    const ph = p.photos?.[p.photoIdx];
+    const photoHtml = p.photos?.length ? `<div class="ac-photo">${ph ? `<img src="${esc(ph.url)}" alt="" loading="lazy" onerror="this.style.opacity=0" />` : '<span class="ac-nophoto">sans photo</span>'}${p.status === 'pending' || !p.status ? `<button type="button" class="rp-btn" data-photo>${ph ? 'autre photo' : 'remettre une photo'}</button>` : ''}</div>${ph ? `<div class="ac-credit">photo : ${esc(ph.credit)}</div>` : ''}` : '';
+    return `${photoHtml}<div class="ac-title">nouvelle recette : ${esc(p.name)}</div><ul>${p.ingredients.map(line).join('')}</ul><div class="ac-total">${fmt(tot / p.portions)} kcal / portion · ${p.portions} portion${p.portions > 1 ? 's' : ''}</div>${p.preparation ? `<p class="ac-prep">${esc(p.preparation).replace(/\n/g, '<br>')}</p>` : ''}`;
   }
   return '';
 }
@@ -198,7 +203,10 @@ export function applyProposal(p) {
     return 'objectif mis à jour ✦';
   }
   if (p.type === 'recipe') {
-    saveRecipe({ name: p.name, portions: p.portions, preparation: p.preparation, ingredients: p.ingredients.filter((i) => i.food).map((i) => ({ ...i.food, grams: i.grams })) });
+    const ph = p.photos?.[p.photoIdx];
+    const r = saveRecipe({ name: p.name, portions: p.portions, preparation: p.preparation, photo: ph?.url || '', photoCredit: ph?.credit || '', ingredients: p.ingredients.filter((i) => i.food).map((i) => ({ ...i.food, grams: i.grams })) });
+    // on télécharge la photo pour qu'elle reste même hors ligne
+    if (ph) urlToDataUrl(ph.url).then((d) => { const cur = getRecipe(r.id); if (cur && cur.photo === ph.url) saveRecipe({ ...cur, photo: d }); }).catch(() => {});
     return 'recette enregistrée ✦';
   }
   return '';

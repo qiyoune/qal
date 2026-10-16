@@ -648,3 +648,10 @@ html:root[data-theme="dark"] body.page-chat { --surface: #3A302B; }
 .rc-photo { width: calc(100% + 32px); margin: 0 -16px 6px; aspect-ratio: 4 / 3; object-fit: cover; display: block; }
 .food-head img.photo { object-fit: cover; }
 .recipe-hero { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 16px; margin-top: 14px; display: block; }
+
+/* Photo proposée par l'IA dans une carte recette */
+.ac-photo { position: relative; margin: -2px 0 6px; border-radius: 14px; overflow: hidden; aspect-ratio: 4 / 3; background: var(--surface); }
+.ac-photo img { width: 100%; height: 100%; object-fit: cover; display: block; transition: opacity .2s; }
+.ac-photo .rp-btn { position: absolute; right: 8px; bottom: 8px; }
+.ac-nophoto { height: 100%; display: flex; align-items: center; justify-content: center; color: var(--text-2); font-size: 13px; font-weight: 700; }
+.ac-credit { font-size: 11px; color: var(--text-2); margin: 0 2px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
