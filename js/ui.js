@@ -101,6 +101,10 @@ export function splash() {
   const el = $('#splash');
   const numEl = $('#splash-num');
   const steps = $$('.splash-steps span');
+  // une seule fois par ouverture : pas de 2e écran quand l'appli se recharge pour une mise à jour
+  let seen = false;
+  try { seen = sessionStorage.getItem('qal:splashed') === '1'; sessionStorage.setItem('qal:splashed', '1'); } catch {}
+  if (seen) { el.remove(); return Promise.resolve(); }
   const t0 = performance.now();
   const D = 750;
   return new Promise((res) => {
