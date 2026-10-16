@@ -64,7 +64,8 @@ export function renderChat(root, ui, nav) {
       const text = e.badKey ? 'Ta clé Gemini est refusée. Vérifie-la dans Profil → IA.'
         : e.quota ? 'Limite gratuite de Gemini atteinte pour le moment. Réessaie dans une minute (ou demain si c\'est la limite du jour).'
         : 'Je n\'arrive pas à joindre l\'IA. Vérifie ta connexion et réessaie.';
-      msgs.push({ role: 'assistant', text, error: true, at: Date.now() });
+      const detail = e.detail ? `\n(Réponse de Google : ${e.detail})` : e.message && !e.badKey && !e.quota ? `\n(${e.message})` : '';
+      msgs.push({ role: 'assistant', text: text + detail, error: true, at: Date.now() });
     }
     busy = false; saveChat(msgs); draw();
   };
