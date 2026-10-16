@@ -1,5 +1,5 @@
 // Options : apparence, IA, synchro, sauvegarde
-import { esc, icons, toast, $ } from '../ui.js';
+import { esc, icons, toast, $, askConfirm } from '../ui.js';
 import { getState, exportData, importData, resetAll } from '../store.js';
 import * as drive from '../drive.js';
 import { getThemePref, setThemePref } from '../fx.js';
@@ -147,8 +147,8 @@ export function renderSettings(root, ui, nav) {
     try { importData(JSON.parse(await file.text())); toast('sauvegarde importée ✦'); renderProfile(root, ui, nav); }
     catch { toast('fichier invalide'); }
   };
-  $('#b-reset', root).onclick = () => {
-    if (!confirm('Effacer toutes tes données sur cet appareil ?')) return;
+  $('#b-reset', root).onclick = async () => {
+    if (!(await askConfirm('Effacer toutes tes données sur cet appareil ?', { ok: 'tout effacer' }))) return;
     resetAll();
     nav.go('#/onboarding');
   };

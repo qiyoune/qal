@@ -1,5 +1,5 @@
 // Onglet Recettes : liste, création / modification, ajout au journal
-import { esc, icons, num, toast, mealForNow, dateStr, $, photoToDataUrl } from '../ui.js';
+import { esc, icons, num, toast, mealForNow, dateStr, $, photoToDataUrl, askConfirm } from '../ui.js';
 import { listRecipes, getRecipe, saveRecipe, deleteRecipe, recipeAsFood } from '../store.js';
 import { scale, fmt } from '../nutrition.js';
 import { openIngredientPicker } from '../picker.js';
@@ -51,7 +51,7 @@ function openRecipe(id, ui, nav) {
     extraHtml: (r.photoCredit && r.photo ? `<p class="small muted" style="margin:10px 2px 0">photo : ${esc(r.photoCredit)}</p>` : '') + (r.preparation ? `<div class="prep-block"><div class="about-label" style="margin-top:0">Préparation</div><p>${esc(r.preparation).replace(/\n/g, '<br>')}</p></div>` : ''),
     extra: [
       { label: 'modifier la recette', cls: 'btn-ghost', onClick: () => { ui.recipeDraft = JSON.parse(JSON.stringify(r)); nav.go('#/recipe'); } },
-      { label: 'supprimer', cls: 'btn-danger', onClick: () => { if (confirm(`Supprimer « ${r.name} » ?`)) { deleteRecipe(id); toast('recette supprimée'); nav.render(); } } },
+      { label: 'supprimer', cls: 'btn-danger', onClick: async () => { if (await askConfirm(`Supprimer « ${r.name} » ?`)) { deleteRecipe(id); toast('recette supprimée'); nav.render(); } } },
     ],
   });
 }

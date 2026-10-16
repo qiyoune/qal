@@ -90,6 +90,22 @@ export function closeSheet({ silent = false } = {}) {
 }
 export const sheetOpen = () => !$('#sheet').hidden;
 
+// Confirmation dans l'appli (les fenêtres confirm() de Safari ne marchent pas toujours en appli écran d'accueil)
+export function askConfirm(message, { ok = 'supprimer', danger = true } = {}) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (v) => { if (done) return; done = true; closeSheet({ silent: true }); resolve(v); };
+    const sheet = openSheet(`
+      <h2 style="font-size:22px;text-transform:none;font-family:var(--font);font-weight:800;margin:4px 0 18px">${esc(message)}</h2>
+      <div class="stack">
+        <button class="btn ${danger ? 'btn-danger' : 'btn-primary'}" id="cf-ok">${esc(ok)}</button>
+        <button class="btn btn-ghost" id="cf-no">annuler</button>
+      </div>`, { onClose: () => { if (!done) { done = true; resolve(false); } } });
+    $('#cf-ok', sheet).onclick = () => finish(true);
+    $('#cf-no', sheet).onclick = () => finish(false);
+  });
+}
+
 /* ---------- Décor ---------- */
 export function sparkles() {
   const host = $('#sparkles');
