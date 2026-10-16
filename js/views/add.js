@@ -1,7 +1,7 @@
-// Ajouter un aliment : scanner, rechercher, récents, perso
+// Ajouter un aliment : scanner, rechercher, récents, recettes
 import { esc, icons, $, toast, sheetOpen } from '../ui.js';
 import { MEALS, recentFoods, customFoods, findFoodByCode, listRecipes, recipeAsFood } from '../store.js';
-import { fmt } from '../nutrition.js';
+import { fmt, scale } from '../nutrition.js';
 import { searchCiqual, searchOFF, getProduct, norm, loadCiqual } from '../foods.js';
 import { Scanner } from '../scanner.js';
 import { openFoodSheet, openNotFoundSheet, openCustomFoodSheet } from '../sheets.js';
@@ -28,7 +28,7 @@ function resultRow(f, idx, list) {
 
 export function renderAdd(root, ui, nav) {
   stopScanner();
-  const tab = ui.addTab || 'search';
+  const tab = ['scan', 'search', 'recent', 'recipes'].includes(ui.addTab) ? ui.addTab : 'search';
   root.innerHTML = `
     <header class="topbar">
       <button class="icon-btn" id="a-back" aria-label="Retour">${icons.back}</button>
@@ -39,7 +39,7 @@ export function renderAdd(root, ui, nav) {
       ${MEALS.map((m) => `<button class="chip ${m.id === ui.addMeal ? 'on' : ''}" data-meal="${m.id}">${m.label}</button>`).join('')}
     </div>
     <div class="tabs section">
-      ${[['scan', 'scanner'], ['search', 'chercher'], ['recent', 'récents'], ['perso', 'perso']].map(([id, l]) => `<button class="tab ${tab === id ? 'on' : ''}" data-tab="${id}">${l}</button>`).join('')}
+      ${[['scan', 'scanner'], ['search', 'chercher'], ['recent', 'récents'], ['recipes', 'recettes']].map(([id, l]) => `<button class="tab ${tab === id ? 'on' : ''}" data-tab="${id}">${l}</button>`).join('')}
     </div>
     <div id="a-body" class="section"></div>`;
 
@@ -198,24 +198,25 @@ export function renderAdd(root, ui, nav) {
     return;
   }
 
-  /* ---------- Perso ---------- */
-  if (tab === 'perso') {
-    const items = [...listRecipes().map(recipeAsFood), ...customFoods()];
-    lists.perso = items;
-    body.innerHTML = `
-      <button class="btn btn-primary" id="p-new">${icons.plus.replace('<svg', '<svg width="18" height="18"')} créer un aliment</button>
-      <p class="small muted center" style="margin:10px 0 0">Pour un produit introuvable ou une recette maison.</p>
-      ${items.length ? `<div class="card section" style="padding:4px 16px">${items.map((f, i) => resultRow(f, i, 'perso')).join('')}</div>` : ''}`;
+  /* ---------- Recettes ---------- */
+  if (tab === 'recipes') {
+    const items = listRecipes().map(recipeAsFood);
+    lists.recipes = items;
+    body.innerHTML = items.length
+      ? `<div class="card" style="padding:4px 16px">${items.map((f, i) => {
+          const per = scale(f.per100, f.serving.grams);
+          return `<button class="result" data-list="recipes" data-i="${i}">
+            <span class="thumb">✦</span>
+            <span class="grow"><div class="t">${esc(f.name)}</div><div class="s">1 portion · ${fmt(f.serving.grams)} g · P ${fmt(per.prot)} · G ${fmt(per.carb)} · L ${fmt(per.fat)}</div></span>
+            <span class="k">${fmt(per.kcal)}<small>kcal/portion</small></span>
+          </button>`;
+        }).join('')}</div>
+        <button class="btn btn-outline section" id="r-new">${icons.plus.replace('<svg', '<svg width="18" height="18"')} nouvelle recette</button>`
+      : `<div class="empty-state">
+          <p class="muted">Pas encore de recette. Enregistre tes plats maison une fois, ils s'ajoutent ensuite ici en un tap.</p>
+          <button class="btn btn-primary" id="r-new">créer une recette</button>
+        </div>`;
     bindResults(body);
-    $('#p-new', body).onclick = () => openCustomFoodSheet({ onSaved: (f) => pick(f) });
-    // appui long : modifier / supprimer
-    body.querySelectorAll('.result').forEach((b) => {
-      let t;
-      if (lists.perso[+b.dataset.i].source === 'recette') return;
-      b.addEventListener('touchstart', () => { t = setTimeout(() => editCustom(lists.perso[+b.dataset.i]), 550); }, { passive: true });
-      ['touchend', 'touchmove'].forEach((ev) => b.addEventListener(ev, () => clearTimeout(t), { passive: true }));
-      b.addEventListener('contextmenu', (e) => { e.preventDefault(); editCustom(lists.perso[+b.dataset.i]); });
-    });
-    const editCustom = (f) => openCustomFoodSheet({ food: f, onSaved: () => renderAdd(root, ui, nav) });
+    $('#r-new', body).onclick = () => { ui.recipeDraft = { name: '', portions: 1, ingredients: [], preparation: '' }; nav.go('#/recipe'); };
   }
 }
