@@ -117,7 +117,7 @@ function animateFill(root, ui, pct, over) {
     else if (ui.justAdded) {
       ui.justAdded = false;
       const b = root.querySelector('.star-wrap')?.getBoundingClientRect();
-      if (b) burst(b.left + b.width / 2, b.top + b.height / 2, over ? 6 : 10);
+      if (b && !over) burst(b.left + b.width / 2, b.top + b.height / 2, 10);
     }
   };
   requestAnimationFrame(step);
