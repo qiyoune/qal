@@ -11,7 +11,7 @@ import { startOnboarding, renderOnboarding } from './views/onboarding.js';
 import { openFoodSheet } from './sheets.js';
 import { loadCiqual } from './foods.js';
 import * as drive from './drive.js';
-import { starWipe, applyPeriod, bigStars } from './fx.js';
+import { applyPeriod, bigStars } from './fx.js';
 
 const root = $('#app');
 const ui = {
@@ -89,16 +89,11 @@ function renderTabbar(r) {
   bar.querySelectorAll('.tab-item').forEach((a) => a.classList.toggle('on', a.dataset.hash === route));
 }
 
-// Changement d'écran : instantané. Seul le bouton IA a son animation :
-// l'étoile du bouton grandit jusqu'à devenir le fond du chat.
+// Changement d'écran : instantané, sans animation
 window.addEventListener('hashchange', () => {
   stopScanner();
-  const go = () => { render(); window.scrollTo(0, 0); };
-  const btn = document.querySelector('#tabbar:not([hidden]) .tab-ai');
-  if (route() === '#/chat' && btn) {
-    const b = btn.getBoundingClientRect();
-    starWipe(go, { x: b.left + b.width / 2, y: b.top + b.height / 2 });
-  } else go();
+  render();
+  window.scrollTo(0, 0);
 });
 
 // Re-dessine le journal quand les données changent (ex : après une synchro)
