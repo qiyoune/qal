@@ -554,3 +554,4 @@ html:root[data-theme="dark"] .star-track { fill: #362C28; }
 html:root[data-theme="dark"] { --chat-bg: #2E2622; }
 body.page-chat { --bg: var(--chat-bg); --surface: #FBF8F5; }
 html:root[data-theme="dark"] body.page-chat { --surface: #3A302B; }
+.micro-summary { font-size: 14px; color: var(--text-body); margin: 14px 4px 0; line-height: 1.5; }
