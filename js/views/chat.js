@@ -4,6 +4,7 @@ import { loadChat, saveChat, clearChat, ask, isOnline } from '../ai.js';
 import { getState } from '../store.js';
 import { resolveCalls, proposalHtml, applyProposal, canApply, proposalSummary } from '../aiactions.js';
 import { toast } from '../ui.js';
+import { attachMic, micSvg } from '../voice.js';
 
 const SUGGESTIONS = [
   'J\'ai mangé 200 g de riz et un blanc de poulet ce midi',
@@ -33,6 +34,7 @@ export function renderChat(root, ui, nav) {
         </label>
         <div class="chat-thumb" id="c-thumb" hidden></div>
         <textarea id="c-in" rows="1" maxlength="1000" placeholder="Pose ta question…" enterkeyhint="send"></textarea>
+        <button type="button" class="mic-btn" id="c-mic" aria-label="Dicter">${micSvg}</button>
         <button class="chat-send" id="c-send" aria-label="Envoyer">${icons.next}</button>
       </form>
     </div>`;
@@ -120,6 +122,7 @@ export function renderChat(root, ui, nav) {
 
   const grow = () => { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 140) + 'px'; };
   input.addEventListener('input', grow);
+  attachMic($('#c-mic', root), input);
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input.value); } });
   $('#c-form', root).onsubmit = (e) => { e.preventDefault(); send(input.value); };
   $('#c-back', root).onclick = () => (history.length > 1 ? history.back() : nav.go('#/'));

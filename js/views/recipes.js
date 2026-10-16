@@ -4,6 +4,7 @@ import { listRecipes, getRecipe, saveRecipe, deleteRecipe, recipeAsFood } from '
 import { scale, fmt } from '../nutrition.js';
 import { openIngredientPicker } from '../picker.js';
 import { openFoodSheet } from '../sheets.js';
+import { attachMic, micSvg } from '../voice.js';
 
 /* ---------- Liste ---------- */
 export function renderRecipes(root, ui, nav) {
@@ -107,13 +108,14 @@ export function renderRecipeEditor(root, ui, nav) {
       <button class="btn btn-outline section" id="e-add">${icons.plus.replace('<svg', '<svg width="18" height="18"')} ajouter un ingrédient</button>
 
       <div class="about-label section">Préparation</div>
-      <div class="long-input compact"><textarea id="e-prep" maxlength="3000" rows="6" placeholder="Les étapes : cuire le riz 10 min, griller le poulet, ajouter les brocolis vapeur…">${esc(d.preparation || '')}</textarea><span class="count" id="e-prep-count">${(d.preparation || '').length} / 3000</span></div>
+      <div class="long-input compact"><textarea id="e-prep" maxlength="3000" rows="6" placeholder="Les étapes : cuire le riz 10 min, griller le poulet, ajouter les brocolis vapeur…">${esc(d.preparation || '')}</textarea><button type="button" class="mic-btn in-field" id="e-prep-mic" aria-label="Dicter">${micSvg}</button><span class="count" id="e-prep-count">${(d.preparation || '').length} / 3000</span></div>
 
       <button class="btn btn-primary section" id="e-save" ${d.name.trim() && has ? '' : 'disabled'}>enregistrer la recette</button>
     `;
     const nameIn = $('#e-name', root), save = $('#e-save', root), prep = $('#e-prep', root);
     const canSave = () => { save.disabled = !(d.name.trim() && d.ingredients.length); };
     nameIn.addEventListener('input', () => { d.name = nameIn.value; canSave(); });
+    attachMic($('#e-prep-mic', root), prep);
     prep.addEventListener('input', () => { d.preparation = prep.value; $('#e-prep-count', root).textContent = `${prep.value.length} / 3000`; });
     root.querySelectorAll('[data-p]').forEach((b) => (b.onclick = () => { d.portions = Math.max(1, Math.min(50, n + +b.dataset.p)); draw(); }));
     root.querySelectorAll('[data-del]').forEach((b) => (b.onclick = () => { d.ingredients.splice(+b.dataset.del, 1); draw(); }));

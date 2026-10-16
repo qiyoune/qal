@@ -2,6 +2,7 @@
 import { esc, icons, num, star, plain, $ } from '../ui.js';
 import { computeTargets, tipsFor, fmt } from '../nutrition.js';
 import { getState, setProfile, setGoals } from '../store.js';
+import { attachMic, micSvg } from '../voice.js';
 
 let a = {};      // réponses
 let i = 0;       // étape courante
@@ -202,7 +203,8 @@ export function renderOnboarding(root, done) {
     if (st.kind === 'longtext') {
       const ph = typeof st.placeholder === 'function' ? st.placeholder() : st.placeholder;
       const v = a[st.key] || '';
-      body += `<div class="long-input"><textarea id="ob-in" maxlength="${st.max}" rows="5" placeholder="${esc(ph)}">${esc(v)}</textarea><span class="count" id="ob-count">${v.length} / ${st.max}</span></div>`;
+      body += `<div class="long-input"><textarea id="ob-in" maxlength="${st.max}" rows="5" placeholder="${esc(ph)}">${esc(v)}</textarea><button type="button" class="mic-btn in-field" id="ob-mic" aria-label="Dicter">${micSvg}</button><span class="count" id="ob-count">${v.length} / ${st.max}</span></div>
+        <p class="small muted" style="margin:-12px 4px 0">Tu peux aussi parler : touche le micro.</p>`;
     }
     if (st.kind === 'text') body += `<div class="big-input"><input class="text" id="ob-in" type="text" autocomplete="given-name" placeholder="${esc(st.placeholder)}" value="${esc(a[st.key] || '')}" maxlength="30" /></div>`;
     if (st.kind === 'number') body += `<div class="big-input"><input id="ob-in" type="text" inputmode="${st.decimal ? 'decimal' : 'numeric'}" placeholder="0" value="${esc(a[st.key] ?? '')}" /><span>${st.unit}</span></div>`;
@@ -241,7 +243,13 @@ export function renderOnboarding(root, done) {
     setTimeout(() => input.focus(), 250);
     if (st.kind !== 'longtext') input.addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#ob-next', root)?.click(); });
     if (st.optional) input.addEventListener('input', () => { $('#ob-next', root).textContent = input.value.trim() ? 'continuer' : 'passer'; });
-    if (st.kind === 'longtext') input.addEventListener('input', () => { $('#ob-count', root).textContent = `${input.value.length} / ${st.max}`; });
+    if (st.kind === 'longtext') {
+      input.addEventListener('input', () => {
+        $('#ob-count', root).textContent = `${input.value.length} / ${st.max}`;
+        const nx = $('#ob-next', root); if (nx && st.optional) nx.textContent = input.value.trim() ? 'continuer' : 'passer';
+      });
+      attachMic($('#ob-mic', root), input);
+    }
   }
 
   root.querySelectorAll('.option').forEach((b) => {
