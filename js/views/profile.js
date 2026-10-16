@@ -4,6 +4,7 @@ import { getState, setGoals, setProfile, exportData, importData, resetAll } from
 import { computeTargets, fmt } from '../nutrition.js';
 import * as drive from '../drive.js';
 import { getThemePref, setThemePref } from '../fx.js';
+import { getGeminiKey, setGeminiKey, testGeminiKey } from '../ai.js';
 
 const LABELS = {
   sex: { m: 'homme', f: 'femme' },
@@ -73,6 +74,20 @@ export function renderProfile(root, ui, nav) {
       <p class="small muted" style="margin:10px 4px 0">Auto suit le réglage clair / sombre de ton iPhone. En clair, le fond change de teinte selon le moment de la journée.</p>
     </div>
 
+    <div class="section center" style="margin-top:26px"><span class="pill-label">✦ ia ✦</span></div>
+    <div class="card section">
+      <div class="sync-status"><span class="dot ${getGeminiKey() ? 'ok' : ''}"></span><span>${getGeminiKey() ? 'Clé Gemini enregistrée : le chat IA est actif.' : 'Ajoute ta clé Gemini gratuite pour activer le chat IA.'}</span></div>
+      <div class="field" style="margin-top:14px">
+        <label for="g-key">Clé API Gemini</label>
+        <input class="input" id="g-key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${getGeminiKey() ? '•••••••• (enregistrée)' : 'colle ta clé ici'}" />
+      </div>
+      <div class="row" style="margin-top:10px">
+        ${getGeminiKey() ? '<button class="btn btn-ghost btn-sm" id="g-del">retirer</button>' : ''}
+        <button class="btn btn-primary btn-sm" id="g-save-key">enregistrer</button>
+      </div>
+      <p class="small muted" style="margin:12px 4px 0">Gratuit : crée ta clé sur <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> (bouton « Create API key »), puis colle-la ici. Elle reste uniquement sur ce téléphone. Avec l'offre gratuite, Google peut utiliser les conversations pour améliorer ses modèles.</p>
+    </div>
+
     <div class="section center" style="margin-top:26px"><span class="pill-label">✦ synchro ✦</span></div>
     <div class="card section">
       <div class="sync-status"><span class="dot ${drive.isConnected() ? (drive.hasValidToken() ? 'ok' : 'err') : ''}"></span><span>${syncTxt}</span></div>
@@ -98,6 +113,24 @@ export function renderProfile(root, ui, nav) {
     </p>`;
 
   $('#p-redo', root).onclick = () => nav.go('#/onboarding');
+
+  // Clé Gemini
+  $('#g-save-key', root).onclick = async () => {
+    const k = $('#g-key', root).value.trim();
+    if (!k) return toast(getGeminiKey() ? 'clé déjà enregistrée' : 'colle ta clé d\'abord');
+    const btn = $('#g-save-key', root);
+    btn.disabled = true; btn.textContent = 'test…';
+    try {
+      await testGeminiKey(k);
+      setGeminiKey(k);
+      toast('clé validée, l\'ia est active ✦');
+      renderProfile(root, ui, nav);
+    } catch (e) {
+      btn.disabled = false; btn.textContent = 'enregistrer';
+      toast(e.badKey ? 'clé refusée par Google' : e.quota ? 'limite gratuite atteinte, réessaie plus tard' : 'impossible de tester la clé (connexion ?)');
+    }
+  };
+  $('#g-del', root)?.addEventListener('click', () => { setGeminiKey(''); toast('clé retirée'); renderProfile(root, ui, nav); });
 
   root.querySelectorAll('[data-theme]').forEach((b) => (b.onclick = () => {
     setThemePref(b.dataset.theme);

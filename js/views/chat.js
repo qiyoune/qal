@@ -40,7 +40,7 @@ export function renderChat(root, ui, nav) {
           <div class="chat-big">✦</div>
           <h2>${name ? 'salut ' + esc(name.toLowerCase()) : 'salut'}</h2>
           <p class="muted">Je connais ton profil, tes objectifs et ce que tu as mangé aujourd'hui. Demande-moi ce que tu veux.</p>
-          ${isOnline() ? '' : '<p class="small muted">L\'IA n\'est pas encore branchée : pour l\'instant je réponds avec tes chiffres du jour.</p>'}
+          ${isOnline() ? '' : '<p class="small muted">L\'IA n\'est pas encore branchée : ajoute ta clé Gemini gratuite dans <a href="#/profile">Profil → IA</a>.</p>'}
           <div class="chat-sugg">${SUGGESTIONS.map((s) => `<button class="chip" data-s="${esc(s)}">${esc(s)}</button>`).join('')}</div>
         </div>`;
       list.querySelectorAll('[data-s]').forEach((b) => (b.onclick = () => send(b.dataset.s)));
@@ -61,7 +61,10 @@ export function renderChat(root, ui, nav) {
       const reply = await ask(msgs.filter((m) => !m.error));
       msgs.push({ role: 'assistant', text: reply, at: Date.now() });
     } catch (e) {
-      msgs.push({ role: 'assistant', text: 'Je n\'arrive pas à joindre l\'IA. Vérifie ta connexion et réessaie.', error: true, at: Date.now() });
+      const text = e.badKey ? 'Ta clé Gemini est refusée. Vérifie-la dans Profil → IA.'
+        : e.quota ? 'Limite gratuite de Gemini atteinte pour le moment. Réessaie dans une minute (ou demain si c\'est la limite du jour).'
+        : 'Je n\'arrive pas à joindre l\'IA. Vérifie ta connexion et réessaie.';
+      msgs.push({ role: 'assistant', text, error: true, at: Date.now() });
     }
     busy = false; saveChat(msgs); draw();
   };

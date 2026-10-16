@@ -1,6 +1,6 @@
 // Service worker : l'appli s'ouvre même sans réseau.
 // Change VERSION à chaque mise à jour pour forcer le rafraîchissement.
-const VERSION = 'qal-v10';
+const VERSION = 'qal-v11';
 const SHELL = [
   './', 'index.html', 'css/style.css', 'manifest.webmanifest',
   'js/app.js', 'js/ui.js', 'js/store.js', 'js/nutrition.js', 'js/foods.js', 'js/scanner.js', 'js/sheets.js', 'js/drive.js', 'js/config.js', 'js/fx.js', 'js/ai.js', 'js/picker.js',
