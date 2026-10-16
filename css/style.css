@@ -476,6 +476,13 @@ h2 { font-size: 28px; line-height: 1.1; }
 .tab-ai-star { color: var(--chat-bg); font-size: 30px; line-height: 1; display: inline-block; animation: ai-breathe 4s ease-in-out infinite; }
 @keyframes ai-breathe { 0%,100% { transform: rotate(0) scale(1); } 50% { transform: rotate(45deg) scale(1.08); } }
 body.has-tabbar #app { padding-bottom: calc(var(--safe-bottom) + 120px); }
+body.page-chat.typing #tabbar { display: none; }
+.tab-ai.on { box-shadow: 0 10px 26px rgba(var(--accent-rgb), .42), 0 0 0 5px var(--bg), 0 0 0 7px var(--accent); }
+/* chat : la zone de saisie se pose au-dessus de la barre */
+body.has-tabbar .chat-input { bottom: calc(var(--safe-bottom) + 92px); }
+body.has-tabbar.page-chat.typing .chat-input { bottom: calc(var(--safe-bottom) + 12px); }
+body.has-tabbar .chat-list { padding-bottom: 190px; }
+body.has-tabbar.page-chat #app { padding-bottom: 0; }
 body.has-tabbar #toast { bottom: calc(var(--safe-bottom) + 98px); }
 
 .section-title { font-size: 24px; margin: 26px 4px 0; }
@@ -548,11 +555,8 @@ body.has-tabbar #toast { bottom: calc(var(--safe-bottom) + 98px); }
 html:root[data-theme="dark"] .star-track { fill: #362C28; }
 
 /* Chat IA : l'étoile crème du bouton grandit et devient le fond du chat */
+/* le chat garde le fond et le décor du reste de l'appli ; --chat-bg sert juste au ✦ du bouton IA */
 :root { --chat-bg: #FFFFFF; }
-html:root[data-theme="dark"] { --chat-bg: #1C1715; }
-body.page-chat { --bg: var(--chat-bg); --bg-alt: #F2F1F0; --surface: #F4F2F0; }
-html:root[data-theme="dark"] body.page-chat { --bg-alt: #2B2421; --surface: #2B2421; }
-body.page-chat #sparkles { display: none; }
 .micro-summary { font-size: 14px; color: var(--text-body); margin: 14px 4px 0; line-height: 1.5; }
 
 /* ---------- Recette : bloc "1 portion" ---------- */

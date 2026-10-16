@@ -72,7 +72,6 @@ const TABS = [
   { hash: '#/recipes', label: 'recettes', icon: '<path d="M4 11h16a8 8 0 0 1-16 0z"/><path d="M8 7c0-1.5 1-2 1-3M12 7c0-1.5 1-2 1-3M16 7c0-1.5 1-2 1-3"/>' },
   { hash: '#/profile', label: 'profil', icon: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/>' },
 ];
-const SHOW_TABBAR = ['#/', '#/micros', '#/recipes', '#/profile'];
 function renderTabbar(r) {
   let bar = document.getElementById('tabbar');
   if (!bar) {
@@ -85,11 +84,16 @@ function renderTabbar(r) {
     document.body.appendChild(bar);
   }
   const route = r === '' ? '#/' : r;
-  bar.hidden = !SHOW_TABBAR.includes(route);
+  bar.hidden = route === '#/onboarding'; // la barre est partout sauf pendant le questionnaire
   document.body.classList.toggle('has-tabbar', !bar.hidden);
   document.body.classList.toggle('page-chat', route === '#/chat');
   bar.querySelectorAll('.tab-item').forEach((a) => a.classList.toggle('on', a.dataset.hash === route));
+  bar.querySelector('.tab-ai')?.classList.toggle('on', route === '#/chat');
 }
+
+// Clavier ouvert (champ texte actif) : on cache la barre pour laisser la place
+document.addEventListener('focusin', (e) => { if (e.target.matches('textarea, input[type="text"], input[type="search"], input:not([type])')) document.body.classList.add('typing'); });
+document.addEventListener('focusout', () => setTimeout(() => { if (!document.activeElement?.matches('textarea, input')) document.body.classList.remove('typing'); }, 50));
 
 // Changement d'écran : instantané, sans animation
 window.addEventListener('hashchange', () => {
