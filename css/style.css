@@ -592,3 +592,7 @@ html:root[data-theme="dark"] body.page-chat { --surface: #3A302B; }
 .ac-status { margin-top: 10px; font-size: 13px; font-weight: 700; color: var(--success); }
 .action-card.cancelled .ac-status { color: var(--text-2); }
 .ob-section { font-size: 13px; font-weight: 700; color: var(--accent); margin-bottom: -10px; }
+/* Les 4 repas prennent toute la largeur */
+.chips.meal-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 0; padding: 0; overflow: visible; }
+.chips.meal-grid .chip { padding: 9px 4px; font-size: 13px; text-align: center; min-width: 0; }
+.chips.meal-grid + .tabs, .section + .tabs { margin-top: 12px; }

@@ -43,7 +43,7 @@ export function openFoodSheet({ food, grams, meal, date, entryId, onDone, onCanc
     <div class="per100">pour 100 g : ${fmt(p.kcal)} kcal · P ${fmt(p.prot, 1)} · G ${fmt(p.carb, 1)} · L ${fmt(p.fat, 1)}${p.fiber != null ? ' · fibres ' + fmt(p.fiber, 1) : ''}</div>
 
     ${extraHtml}
-    <div class="chips" style="margin-top:16px" id="meal-chips">
+    <div class="chips meal-grid" style="margin-top:16px" id="meal-chips">
       ${MEALS.map((x) => `<button class="chip ${x.id === m ? 'on' : ''}" data-meal="${x.id}">${x.label}</button>`).join('')}
     </div>
 

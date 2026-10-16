@@ -35,7 +35,7 @@ export function renderAdd(root, ui, nav) {
       <div class="head" style="font-size:24px">ajouter ${'<span class="star">✦</span>'}</div>
       <span style="width:42px"></span>
     </header>
-    <div class="chips section" id="a-meals">
+    <div class="chips meal-grid section" id="a-meals">
       ${MEALS.map((m) => `<button class="chip ${m.id === ui.addMeal ? 'on' : ''}" data-meal="${m.id}">${m.label}</button>`).join('')}
     </div>
     <div class="tabs section">
