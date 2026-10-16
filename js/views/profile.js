@@ -85,6 +85,7 @@ export function renderProfile(root, ui, nav) {
         ${getGeminiKey() ? '<button class="btn btn-ghost btn-sm" id="g-del">retirer</button>' : ''}
         <button class="btn btn-primary btn-sm" id="g-save-key">enregistrer</button>
       </div>
+      <p class="small" id="g-err" style="margin:10px 4px 0;color:var(--accent)"></p>
       <p class="small muted" style="margin:12px 4px 0">Gratuit : crée ta clé sur <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> (bouton « Create API key »), puis colle-la ici. Elle reste uniquement sur ce téléphone. Avec l'offre gratuite, Google peut utiliser les conversations pour améliorer ses modèles.</p>
     </div>
 
@@ -127,7 +128,9 @@ export function renderProfile(root, ui, nav) {
       renderProfile(root, ui, nav);
     } catch (e) {
       btn.disabled = false; btn.textContent = 'enregistrer';
-      toast(e.badKey ? 'clé refusée par Google' : e.quota ? 'limite gratuite atteinte, réessaie plus tard' : 'impossible de tester la clé (connexion ?)');
+      const why = e.detail ? ` (${e.detail.slice(0, 90)})` : '';
+      toast(e.badKey ? 'clé refusée par Google' + why : e.quota ? 'limite gratuite atteinte, réessaie plus tard' : 'test impossible' + (why || ' (connexion ?)'));
+      const p = $('#g-err', root); if (p) p.textContent = e.detail ? 'Réponse de Google : ' + e.detail : (e.message || '');
     }
   };
   $('#g-del', root)?.addEventListener('click', () => { setGeminiKey(''); toast('clé retirée'); renderProfile(root, ui, nav); });
