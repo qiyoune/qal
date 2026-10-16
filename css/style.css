@@ -673,3 +673,5 @@ html:root[data-theme="dark"] .star-track { fill: #362C28; }
 .me-del { width: 40px; height: 40px; }
 .me-del:disabled { opacity: .3; }
 .chips.me-add { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; overflow: visible; padding: 0; }
+
+.ob-hero { font-size: 46px; line-height: 1; color: var(--accent); }

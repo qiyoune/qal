@@ -4,6 +4,9 @@ import { computeTargets, tipsFor, fmt } from '../nutrition.js';
 import { getState, setProfile, setGoals, setMealSlots, MEALS, MEAL_PRESETS, DEFAULT_MEALS } from '../store.js';
 import { OPT, appetiteFrom } from '../answers.js';
 import { attachMic, micSvg } from '../voice.js';
+import * as drive from '../drive.js';
+import { PROVIDERS, getKey, setKey, testKey, getProvider } from '../ai.js';
+import { toast } from '../ui.js';
 
 let a = {};      // réponses
 let i = 0;       // étape courante
@@ -121,7 +124,20 @@ const STEPS = [
   },
 
   { key: 'result', kind: 'result', section: '' },
+
+  /* ---------- Après : synchro et IA (facultatif) ---------- */
+  {
+    key: 'drive', kind: 'drive', section: '', skip: () => skipDrive,
+    title: () => 'garde tes données partout',
+    sub: "Connecte ton compte Google : ton journal est sauvegardé dans ton propre Google Drive (dans un dossier caché réservé à qal) et tu le retrouves sur tous tes appareils. qal ne voit aucun autre fichier.",
+  },
+  {
+    key: 'ai', kind: 'ai', section: '', skip: () => skipAi,
+    title: () => `active l'ia ${star}`,
+    sub: "Pour discuter avec l'IA (ajouter un repas en une phrase ou en photo, idées de repas, bilan de la semaine…), colle une clé API. Gemini est gratuit.",
+  },
 ];
+let skipDrive = false, skipAi = false, aiProv = 'gemini';
 
 const MEAL_EM = { breakfast: '🥐', brunch: '🍳', lunch: '🍝', snack: '🍎', preworkout: '🍌', postworkout: '🥤', dinner: '🍲', night: '🥛' };
 
@@ -134,6 +150,10 @@ export function startOnboarding() {
   a = p ? { ...p } : { training: [] };
   a.mealIds = MEALS.filter((m) => MEAL_PRESETS.some((x) => x.id === m.id)).map((m) => m.id);
   if (!a.habits && p?.appetite && p.appetite !== 'normal') a.habits = [p.appetite];
+  // déjà fait ? on ne redemande pas
+  skipDrive = !drive.isConfigured() || drive.isConnected();
+  skipAi = Object.keys(PROVIDERS).some((x) => getKey(x));
+  aiProv = getProvider();
   i = 0;
 }
 
@@ -146,7 +166,17 @@ export function renderOnboarding(root, done) {
 
   let body = '';
   if (st.kind === 'result') body = resultHtml();
-  else {
+  else if (st.kind === 'drive') body = `<div class="ob-hero">☁️</div><h1>${plain(st.title())}</h1><p class="ob-sub">${st.sub}</p>
+      <button class="btn btn-primary" id="ob-drive">${icons.cloud.replace('<svg', '<svg width="18" height="18"')} se connecter avec Google</button>
+      <p class="small muted" id="ob-drive-st" style="margin:-8px 4px 0;text-align:center"></p>`;
+  else if (st.kind === 'ai') {
+    const P = PROVIDERS[aiProv];
+    body = `<div class="ob-hero">✦</div><h1>${plain(st.title())}</h1><p class="ob-sub">${st.sub}</p>
+      <div class="segmented" id="ob-prov">${Object.entries(PROVIDERS).map(([id, x]) => `<button class="${id === aiProv ? 'on' : ''}" data-prov="${id}">${x.label}</button>`).join('')}</div>
+      <div class="field" style="margin:0"><input class="input" id="ob-key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="colle ta clé ${P.label} ici" /></div>
+      <p class="small muted" style="margin:-8px 4px 0">${P.free ? `Gratuit : crée-la sur <a href="${P.help}" target="_blank" rel="noopener">${P.helpTxt}</a> (« Create API key »).` : `Payant à l'usage (quelques centimes par jour) : crée-la sur <a href="${P.help}" target="_blank" rel="noopener">${P.helpTxt}</a>.`} Elle reste sur ton appareil. Tu pourras la changer dans Options → IA.</p>
+      <p class="small" id="ob-key-err" style="margin:-8px 4px 0;color:var(--accent)"></p>`;
+  } else {
     const si = SECTIONS.indexOf(st.section);
     const sub = typeof st.sub === 'function' ? st.sub() : st.sub;
     body = `${si >= 0 ? `<div class="ob-section">${si + 1} / ${SECTIONS.length} · ${st.section}</div>` : ''}<h1>${plain(st.title())}</h1>${sub ? `<p class="ob-sub">${sub}</p>` : ''}`;
@@ -170,7 +200,8 @@ export function renderOnboarding(root, done) {
 
   const needsNext = st.kind !== 'choice';
   const isEmpty = (v) => v == null || v === '' || (Array.isArray(v) && !v.length);
-  const nextLabel = st.kind === 'result' ? `c'est parti ✦` : st.kind === 'intro' ? 'commencer' : st.optional && isEmpty(a[st.key]) ? 'passer' : 'continuer';
+  const after = steps.slice(i + 1).length > 0;
+  const nextLabel = st.kind === 'result' ? (after ? 'continuer' : `c'est parti ✦`) : st.kind === 'drive' ? 'plus tard' : st.kind === 'ai' ? 'plus tard' : st.kind === 'intro' ? 'commencer' : st.optional && isEmpty(a[st.key]) ? 'passer' : 'continuer';
 
   root.innerHTML = `
     <div class="ob">
@@ -179,7 +210,7 @@ export function renderOnboarding(root, done) {
         <div class="ob-progress"><div style="width:${progress}%"></div></div>
       </div>
       <div class="ob-body">${body}</div>
-      <div class="ob-foot">${needsNext ? `<button class="btn btn-primary" id="ob-next">${nextLabel}</button>` : ''}</div>
+      <div class="ob-foot">${needsNext ? `<button class="btn ${nextLabel === 'plus tard' ? 'btn-ghost' : 'btn-primary'}" id="ob-next">${nextLabel}</button>` : ''}</div>
     </div>`;
 
   const rerender = () => renderOnboarding(root, done);
@@ -234,9 +265,45 @@ export function renderOnboarding(root, done) {
     };
   });
 
+  // Étape synchro Google Drive
+  $('#ob-drive', root)?.addEventListener('click', async () => {
+    const b = $('#ob-drive', root), stEl = $('#ob-drive-st', root);
+    b.disabled = true; stEl.textContent = 'connexion…';
+    try {
+      await drive.connect();
+      stEl.textContent = 'synchronisation…';
+      await drive.sync();
+      toast('google drive connecté ✦');
+      skipDrive = true; // l'étape disparaît de la liste : on reste au même index
+      if (after) rerender(); else done(true);
+    } catch (e) { b.disabled = false; stEl.textContent = 'Connexion annulée ou impossible. Tu pourras le faire plus tard dans Options.'; }
+  });
+  // Étape clé IA
+  root.querySelectorAll('[data-prov]').forEach((b) => (b.onclick = () => { aiProv = b.dataset.prov; rerender(); }));
+  const keyIn = $('#ob-key', root);
+  if (keyIn) {
+    const nx = $('#ob-next', root);
+    keyIn.addEventListener('input', () => { const on = !!keyIn.value.trim(); nx.textContent = on ? 'tester et enregistrer' : 'plus tard'; nx.classList.toggle('btn-primary', on); nx.classList.toggle('btn-ghost', !on); });
+    nx.onclick = async () => {
+      const k = keyIn.value.trim();
+      if (!k) return after ? go(1) : done(true);
+      nx.disabled = true; nx.textContent = 'test…';
+      try {
+        await testKey(aiProv, k);
+        setKey(aiProv, k);
+        toast(`${PROVIDERS[aiProv].label} activé ✦`);
+        done(true);
+      } catch (e) {
+        nx.disabled = false; nx.textContent = 'tester et enregistrer';
+        $('#ob-key-err', root).textContent = e.badKey ? `Clé refusée par ${PROVIDERS[aiProv].who}.${e.detail ? ' ' + e.detail.slice(0, 120) : ''}` : e.quota ? 'Limite atteinte ou plus de crédit, réessaie plus tard.' : 'Test impossible (connexion ?). Tu peux passer et réessayer dans Options.';
+      }
+    };
+  }
+
   const next = $('#ob-next', root);
-  if (next) next.onclick = () => {
+  if (next && !keyIn) next.onclick = () => {
     if (st.kind === 'intro') return go(1);
+    if (st.kind === 'drive' || st.kind === 'ai') return after ? go(1) : done(true);
     if (st.kind === 'text' || st.kind === 'longtext') { a[st.key] = input.value.trim().slice(0, st.max || 60); return go(1); }
     if (st.kind === 'number') {
       const v = num(input.value);
@@ -272,7 +339,7 @@ export function renderOnboarding(root, done) {
       const t = computeTargets(a);
       setProfile(a);
       setGoals({ kcal: t.kcal, prot: t.prot, carb: t.carb, fat: t.fat, fiber: t.fiber, custom: false });
-      done(true);
+      if (after) go(1); else done(true);
     }
   };
 }
