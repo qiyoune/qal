@@ -23,7 +23,7 @@ export function openFoodSheet({ food, grams, meal, date, entryId, onDone, onCanc
 
   const html = `
     <div class="food-head">
-      ${food.img ? `<img src="${esc(food.img)}" alt="" />` : `<span class="thumb" style="width:64px;height:64px;font-size:24px">✦</span>`}
+      ${food.photo ? `<img class="photo" src="${esc(food.photo)}" alt="" />` : food.img ? `<img src="${esc(food.img)}" alt="" />` : `<span class="thumb" style="width:64px;height:64px;font-size:24px">✦</span>`}
       <div style="flex:1;min-width:0">
         <h2>${esc(food.name)}</h2>
         <div class="small muted" style="margin-top:4px">${badge(food.source)}${esc(food.brand || '')}${food.quantity ? ' · ' + esc(food.quantity) : ''}</div>

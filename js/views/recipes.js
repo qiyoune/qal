@@ -1,5 +1,5 @@
 // Onglet Recettes : liste, création / modification, ajout au journal
-import { esc, icons, num, toast, mealForNow, dateStr, $ } from '../ui.js';
+import { esc, icons, num, toast, mealForNow, dateStr, $, photoToDataUrl } from '../ui.js';
 import { listRecipes, getRecipe, saveRecipe, deleteRecipe, recipeAsFood } from '../store.js';
 import { scale, fmt } from '../nutrition.js';
 import { openIngredientPicker } from '../picker.js';
@@ -17,8 +17,8 @@ export function renderRecipes(root, ui, nav) {
     ${items.length ? `<div class="recipe-grid section">${items.map((r) => {
       const f = recipeAsFood(r);
       const portion = scale(f.per100, f.serving.grams);
-      return `<button class="recipe-card" data-id="${r.id}">
-        <span class="rc-star">✦</span>
+      return `<button class="recipe-card${r.photo ? ' has-photo' : ''}" data-id="${r.id}">
+        ${r.photo ? `<img class="rc-photo" src="${r.photo}" alt="" />` : '<span class="rc-star">✦</span>'}
         <span class="rc-name">${esc(r.name)}</span>
         <span class="rc-kcal"><b>${fmt(portion.kcal)}</b> kcal / portion</span>
         <span class="rc-macros">P ${fmt(portion.prot)} · G ${fmt(portion.carb)} · L ${fmt(portion.fat)}</span>
@@ -43,12 +43,12 @@ function openRecipe(id, ui, nav) {
   if (!r) return;
   const food = recipeAsFood(r);
   openFoodSheet({
-    food: { ...food, quantity: `1 portion = ${fmt(food.serving.grams)} g${r.portions > 1 ? ` · la recette en fait ${r.portions}` : ''}` },
+    food: { ...food, photo: r.photo || '', quantity: `1 portion = ${fmt(food.serving.grams)} g${r.portions > 1 ? ` · la recette en fait ${r.portions}` : ''}` },
     grams: food.serving.grams,
     meal: ui.date === dateStr() ? mealForNow() : 'lunch',
     date: ui.date,
     onDone: () => { ui.justAdded = true; nav.go('#/'); },
-    extraHtml: r.preparation ? `<div class="prep-block"><div class="about-label" style="margin-top:0">Préparation</div><p>${esc(r.preparation).replace(/\n/g, '<br>')}</p></div>` : '',
+    extraHtml: (r.preparation ? `<div class="prep-block"><div class="about-label" style="margin-top:0">Préparation</div><p>${esc(r.preparation).replace(/\n/g, '<br>')}</p></div>` : ''),
     extra: [
       { label: 'modifier la recette', cls: 'btn-ghost', onClick: () => { ui.recipeDraft = JSON.parse(JSON.stringify(r)); nav.go('#/recipe'); } },
       { label: 'supprimer', cls: 'btn-danger', onClick: () => { if (confirm(`Supprimer « ${r.name} » ?`)) { deleteRecipe(id); toast('recette supprimée'); nav.render(); } } },
@@ -71,6 +71,12 @@ export function renderRecipeEditor(root, ui, nav) {
         <div class="head" style="font-size:24px">${d.id ? 'modifier' : 'nouvelle recette'}</div>
         <span style="width:42px"></span>
       </header>
+
+      <label class="recipe-photo section${d.photo ? ' on' : ''}">
+        ${d.photo ? `<img src="${d.photo}" alt="" /><span class="rp-actions"><span class="rp-btn">changer</span><button type="button" class="rp-btn" id="e-photo-del">retirer</button></span>`
+          : `<span class="rp-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>ajouter une photo</span>`}
+        <input type="file" id="e-photo" accept="image/*" hidden />
+      </label>
 
       <div class="field section"><label>Nom de la recette</label><input class="input" id="e-name" value="${esc(d.name)}" placeholder="ex : bowl poulet riz brocolis" maxlength="60" /></div>
 
@@ -116,6 +122,13 @@ export function renderRecipeEditor(root, ui, nav) {
     const canSave = () => { save.disabled = !(d.name.trim() && d.ingredients.length); };
     nameIn.addEventListener('input', () => { d.name = nameIn.value; canSave(); });
     attachMic($('#e-prep-mic', root), prep);
+    $('#e-photo', root).addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try { d.photo = await photoToDataUrl(file); d.name = nameIn.value; d.preparation = prep.value; draw(); }
+      catch { toast('photo illisible'); }
+    });
+    $('#e-photo-del', root)?.addEventListener('click', (e) => { e.preventDefault(); d.photo = ''; d.name = nameIn.value; d.preparation = prep.value; draw(); });
     prep.addEventListener('input', () => { d.preparation = prep.value; $('#e-prep-count', root).textContent = `${prep.value.length} / 3000`; });
     root.querySelectorAll('[data-p]').forEach((b) => (b.onclick = () => { d.portions = Math.max(1, Math.min(50, n + +b.dataset.p)); draw(); }));
     root.querySelectorAll('[data-del]').forEach((b) => (b.onclick = () => { d.ingredients.splice(+b.dataset.del, 1); draw(); }));

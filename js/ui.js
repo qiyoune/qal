@@ -118,3 +118,23 @@ export function splash() {
     requestAnimationFrame(tick);
   });
 }
+
+/* ---------- Photos ---------- */
+// Recadre au format 4:3 et réduit (photos de recettes : légères pour la synchro)
+export function photoToDataUrl(file, w = 640, h = 480, q = 0.72) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const k = Math.max(w / img.width, h / img.height);
+      const sw = w / k, sh = h / k;
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, (img.width - sw) / 2, (img.height - sh) / 2, sw, sh, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/jpeg', q));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('image')); };
+    img.src = url;
+  });
+}
