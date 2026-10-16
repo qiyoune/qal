@@ -1,6 +1,6 @@
 // Ajouter un aliment : scanner, rechercher, récents, recettes
 import { esc, icons, $, toast, sheetOpen } from '../ui.js';
-import { MEALS, recentFoods, customFoods, findFoodByCode, listRecipes, recipeAsFood, favFoods } from '../store.js';
+import { MEALS, mealForHour, recentFoods, customFoods, findFoodByCode, listRecipes, recipeAsFood, favFoods } from '../store.js';
 import { fmt, scale } from '../nutrition.js';
 import { searchCiqual, searchOFF, getProduct, norm, loadCiqual } from '../foods.js';
 import { Scanner } from '../scanner.js';
@@ -28,6 +28,7 @@ function resultRow(f, idx, list) {
 
 export function renderAdd(root, ui, nav) {
   stopScanner();
+  if (!MEALS.some((m) => m.id === ui.addMeal)) ui.addMeal = mealForHour();
   const tab = ['scan', 'search', 'recent', 'recipes'].includes(ui.addTab) ? ui.addTab : 'search';
   root.innerHTML = `
     <header class="topbar">
@@ -36,7 +37,7 @@ export function renderAdd(root, ui, nav) {
       <span style="width:42px"></span>
     </header>
     <div class="chips meal-grid section" id="a-meals">
-      ${MEALS.map((m) => `<button class="chip ${m.id === ui.addMeal ? 'on' : ''}" data-meal="${m.id}">${m.label}</button>`).join('')}
+      ${MEALS.map((m) => `<button class="chip ${m.id === ui.addMeal ? 'on' : ''}" data-meal="${m.id}">${esc(m.label)}</button>`).join('')}
     </div>
     <div class="tabs section">
       ${[['scan', 'scanner'], ['search', 'chercher'], ['recent', 'favoris'], ['recipes', 'recettes']].map(([id, l]) => `<button class="tab ${tab === id ? 'on' : ''}" data-tab="${id}">${l}</button>`).join('')}

@@ -1,6 +1,6 @@
 // Options : apparence, IA, synchro, sauvegarde
 import { esc, icons, toast, $, askConfirm } from '../ui.js';
-import { getState, exportData, importData, resetAll } from '../store.js';
+import { getState, exportData, importData, resetAll, MEALS, MEAL_PRESETS, setMealSlots, uid } from '../store.js';
 import * as drive from '../drive.js';
 import { getThemePref, setThemePref } from '../fx.js';
 import { PROVIDERS, getKey, setKey, testKey, getProvider, setProvider } from '../ai.js';
@@ -30,6 +30,9 @@ export function renderSettings(root, ui, nav) {
       <p class="small muted" style="margin:10px 4px 0">Auto suit le réglage clair / sombre de ton iPhone. En clair, le fond change de teinte selon le moment de la journée.</p>
     </div>
 
+    <div class="section center" style="margin-top:26px"><span class="pill-label">✦ repas ✦</span></div>
+    <div class="card section" id="meals-card"></div>
+
     <div class="section center" style="margin-top:26px"><span class="pill-label">✦ ia ✦</span></div>
     <div class="card section" id="ai-card"></div>
 
@@ -58,6 +61,43 @@ export function renderSettings(root, ui, nav) {
     </p>`;
 
   $('#o-back', root).onclick = () => (history.length > 1 ? history.back() : nav.go('#/'));
+
+  // Repas : nom, heure, ajout, suppression
+  const drawMeals = () => {
+    const card = $('#meals-card', root);
+    const list = MEALS.map((m) => ({ ...m }));
+    const unused = MEAL_PRESETS.filter((x) => !list.some((m) => m.id === x.id));
+    card.innerHTML = `
+      <p class="small muted" style="margin:0 2px 12px">Les cases de ton journal. Renomme-les, change l'heure à partir de laquelle chacune est proposée, ajoute ou retire-en.</p>
+      <div class="meal-edit">${list.map((m, k) => `
+        <div class="me-row">
+          <input class="input me-name" data-mi="${k}" value="${esc(m.label)}" maxlength="24" aria-label="Nom du repas" />
+          <select class="input me-hour" data-mh="${k}" aria-label="À partir de">${Array.from({ length: 24 }, (_, h) => `<option value="${h}" ${h === (m.hour ?? 0) ? 'selected' : ''}>dès ${h} h</option>`).join('')}</select>
+          <button class="icon-btn me-del" data-md="${k}" aria-label="Retirer ce repas" ${list.length <= 1 ? 'disabled' : ''}>${icons.close}</button>
+        </div>`).join('')}</div>
+      ${list.length < 8 ? `<div class="chips me-add">${unused.map((x) => `<button class="chip" data-mp="${x.id}">+ ${esc(x.label)}</button>`).join('')}<button class="chip" id="me-new">+ autre…</button></div>` : '<p class="small muted" style="margin:10px 2px 0">8 repas maximum.</p>'}`;
+    const save = (next) => { setMealSlots(next); drawMeals(); };
+    card.querySelectorAll('[data-mi]').forEach((el) => el.addEventListener('change', () => {
+      const v = el.value.trim();
+      if (!v) { el.value = list[+el.dataset.mi].label; return; }
+      list[+el.dataset.mi].label = v; setMealSlots(list); toast('repas renommé ✦');
+    }));
+    card.querySelectorAll('[data-mh]').forEach((el) => el.addEventListener('change', () => { list[+el.dataset.mh].hour = +el.value; save(list); }));
+    card.querySelectorAll('[data-md]').forEach((el) => el.addEventListener('click', async () => {
+      const m = list[+el.dataset.md];
+      if (!(await askConfirm(`Retirer « ${m.label} » ?`, { ok: 'retirer' }))) return;
+      save(list.filter((_, k) => k !== +el.dataset.md));
+      toast('repas retiré (les aliments déjà notés restent dans le journal)');
+    }));
+    card.querySelectorAll('[data-mp]').forEach((el) => el.addEventListener('click', () => save([...list, { ...MEAL_PRESETS.find((x) => x.id === el.dataset.mp) }])));
+    $('#me-new', card)?.addEventListener('click', () => {
+      const id = 'm' + uid().slice(0, 8);
+      save([...list, { id, label: 'nouveau repas', hour: Math.min(23, (list[list.length - 1]?.hour ?? 12) + 1) }]);
+      const inp = [...card.querySelectorAll('[data-mi]')].find((x) => x.value === 'nouveau repas');
+      inp?.focus(); inp?.select();
+    });
+  };
+  drawMeals();
 
   // IA : choix du fournisseur + sa clé
   let tab = ui.aiTab && PROVIDERS[ui.aiTab] ? ui.aiTab : getProvider();

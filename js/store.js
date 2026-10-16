@@ -2,12 +2,53 @@
 const KEY = 'qal:v1';
 const listeners = new Set();
 
-export const MEALS = [
-  { id: 'breakfast', label: 'petit-déj' },
-  { id: 'lunch', label: 'déjeuner' },
-  { id: 'snack', label: 'collation' },
-  { id: 'dinner', label: 'dîner' },
+// Repas par défaut (id, nom, heure à partir de laquelle on le propose)
+export const DEFAULT_MEALS = [
+  { id: 'breakfast', label: 'petit-déj', hour: 5 },
+  { id: 'lunch', label: 'déjeuner', hour: 11 },
+  { id: 'snack', label: 'collation', hour: 15 },
+  { id: 'dinner', label: 'dîner', hour: 18 },
 ];
+// Repas suggérés dans le questionnaire et les options
+export const MEAL_PRESETS = [
+  { id: 'breakfast', label: 'petit-déj', hour: 5 },
+  { id: 'brunch', label: 'brunch', hour: 10 },
+  { id: 'lunch', label: 'déjeuner', hour: 11 },
+  { id: 'snack', label: 'collation', hour: 15 },
+  { id: 'preworkout', label: 'avant le sport', hour: 16 },
+  { id: 'postworkout', label: 'après le sport', hour: 17 },
+  { id: 'dinner', label: 'dîner', hour: 18 },
+  { id: 'night', label: 'collation du soir', hour: 21 },
+];
+// Liste vivante : modifiée sur place pour que tout le code qui l'importe reste à jour
+export const MEALS = DEFAULT_MEALS.map((m) => ({ ...m }));
+function syncMeals() {
+  const list = (state.mealSlots?.list || []).filter((m) => m && m.id && m.label);
+  MEALS.splice(0, MEALS.length, ...(list.length ? list : DEFAULT_MEALS).map((m) => ({ ...m })).sort((a, b) => (a.hour ?? 0) - (b.hour ?? 0)));
+}
+export function setMealSlots(list) {
+  state.mealSlots = { list: list.map(({ id, label, hour }) => ({ id, label: String(label).trim().slice(0, 24), hour: Math.max(0, Math.min(23, Math.round(+hour || 0))) })), updatedAt: Date.now() };
+  syncMeals();
+  persist();
+}
+// Repas proposé selon l'heure : le dernier dont l'heure est passée
+export function mealForHour(h = new Date().getHours()) {
+  let pick = MEALS[0];
+  for (const m of MEALS) if ((m.hour ?? 0) <= h) pick = m;
+  if (h < (MEALS[0]?.hour ?? 0)) pick = MEALS[MEALS.length - 1];
+  return pick?.id || 'lunch';
+}
+export const mealLabel = (id) => MEALS.find((m) => m.id === id)?.label || DEFAULT_MEALS.find((m) => m.id === id)?.label || MEAL_PRESETS.find((m) => m.id === id)?.label || 'autre';
+// "ajouter au déjeuner", "ajouter à la collation", "ajouter : brunch"
+export function addToLabel(id) {
+  const l = mealLabel(id);
+  const preset = MEAL_PRESETS.find((m) => m.id === id);
+  if (preset && preset.label === l) {
+    if (['snack', 'night'].includes(id)) return `ajouter à la ${l}`;
+    if (['breakfast', 'brunch', 'lunch', 'dinner'].includes(id)) return `ajouter au ${l}`;
+  }
+  return `ajouter · ${l}`;
+}
 
 const empty = () => ({
   v: 1,
@@ -21,6 +62,7 @@ const empty = () => ({
 });
 
 let state = load();
+syncMeals();
 
 function load() {
   try {
@@ -242,6 +284,7 @@ export function merge(a, b) {
     foods: prune(mergeMap(a.foods, b.foods)),
     recipes: prune(mergeMap(a.recipes, b.recipes)),
     weights: prune(mergeMap(a.weights, b.weights)),
+    mealSlots: pick(a.mealSlots, b.mealSlots),
     meta: a.meta,
   };
 }
@@ -255,6 +298,7 @@ function prune(map) {
 
 export function replaceState(next, { fromSync = true } = {}) {
   state = { ...empty(), ...next, meta: { ...state.meta, ...(next.meta || {}), deviceId: state.meta.deviceId } };
+  syncMeals();
   persist(fromSync);
 }
 
@@ -264,5 +308,6 @@ export function importData(data) {
 
 export function resetAll() {
   state = empty();
+  syncMeals();
   persist();
 }

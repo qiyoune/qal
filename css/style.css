@@ -593,7 +593,7 @@ html:root[data-theme="dark"] body.page-chat { --surface: #3A302B; }
 .action-card.cancelled .ac-status { color: var(--text-2); }
 .ob-section { font-size: 13px; font-weight: 700; color: var(--accent); margin-bottom: -10px; }
 /* Les 4 repas prennent toute la largeur */
-.chips.meal-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 0; padding: 0; overflow: visible; }
+.chips.meal-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(76px, 1fr)); gap: 6px; margin: 0; padding: 0; overflow: visible; }
 .chips.meal-grid .chip { padding: 9px 4px; font-size: 13px; text-align: center; min-width: 0; }
 .chips.meal-grid + .tabs, .section + .tabs { margin-top: 12px; }
 
@@ -655,3 +655,22 @@ html:root[data-theme="dark"] body.page-chat { --surface: #3A302B; }
 .ac-photo .rp-btn { position: absolute; right: 8px; bottom: 8px; }
 .ac-nophoto { height: 100%; display: flex; align-items: center; justify-content: center; color: var(--text-2); font-size: 13px; font-weight: 700; }
 .ac-credit { font-size: 11px; color: var(--text-2); margin: 0 2px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Questionnaire : âge, taille et poids sur un seul écran */
+.body-fields { display: grid; gap: 10px; }
+.body-field { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--surface); border-radius: 20px; padding: 10px 20px; box-shadow: var(--shadow-sm); cursor: text; }
+.bf-label { font-weight: 700; color: var(--text-2); font-size: 16px; }
+.bf-input { display: flex; align-items: baseline; gap: 6px; }
+.bf-input input { width: 110px; text-align: right; border: 0; outline: 0; background: transparent; font-family: var(--font-num); font-weight: 800; font-size: 36px; letter-spacing: -0.03em; color: var(--ink); }
+.bf-input span { font-weight: 700; color: var(--text-2); font-size: 16px; min-width: 26px; }
+
+.kv span:last-child { text-align: right; max-width: 64%; }
+.kv-link { color: var(--ink); text-decoration: underline; text-decoration-color: var(--accent); text-underline-offset: 3px; }
+/* Options : repas */
+.meal-edit { display: grid; gap: 8px; }
+.me-row { display: grid; grid-template-columns: 1fr 112px 40px; gap: 8px; align-items: center; }
+.me-row .input { margin: 0; }
+.me-hour { padding: 0 8px 0 12px; font-size: 15px; }
+.me-del { width: 40px; height: 40px; }
+.me-del:disabled { opacity: .3; }
+.chips.me-add { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; overflow: visible; padding: 0; }

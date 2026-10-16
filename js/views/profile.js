@@ -1,6 +1,7 @@
 // Profil : objectifs, poids, infos perso
 import { esc, icons, num, toast, plain, $ } from '../ui.js';
-import { getState, setGoals, setProfile } from '../store.js';
+import { getState, setGoals, setProfile, MEALS } from '../store.js';
+import { label as ansLabel } from '../answers.js';
 import { weightCardHtml, openWeightSheet } from '../weight.js';
 import { attachMic, micSvg } from '../voice.js';
 import { computeTargets, fmt } from '../nutrition.js';
@@ -51,15 +52,18 @@ export function renderProfile(root, ui, nav) {
       ${[
         ['âge', p.age ? p.age + ' ans' : '–'],
         ['taille', p.height ? p.height + ' cm' : '–'],
+        ['objectif', LABELS.goal[p.goal] || '–'],
         ['poids visé', p.targetWeight ? String(p.targetWeight).replace('.', ',') + ' kg' : '–'],
+        ...((p.extraGoals || []).length ? [['et aussi', esc(ansLabel('extraGoals', p.extraGoals))]] : []),
         ['journée', LABELS.daily[p.daily] || '–'],
         ['pas / jour', LABELS.steps[p.steps] || '–'],
         ['sport', LABELS.trainFreq[p.trainFreq] || '–'],
-        ['objectif', LABELS.goal[p.goal] || '–'],
-        ['appétit', LABELS.appetite[p.appetite] || '–'],
         ['régime', LABELS.diet[p.diet] || '–'],
-        ['repas / jour', p.meals ? (p.meals >= 5 ? '5+' : p.meals) : '–'],
+        ['restrictions', esc(ansLabel('restrictions', p.restrictions || [])) || '–'],
+        ['habitudes', esc(ansLabel('habits', p.habits || [])) || LABELS.appetite[p.appetite] || '–'],
         ['cuisine', LABELS.cooking[p.cooking] || '–'],
+        ...((p.eatPlaces || []).length ? [['tu manges', esc(ansLabel('eatPlaces', p.eatPlaces))]] : []),
+        ['repas', `<a href="#/settings" class="kv-link">${esc(MEALS.map((m) => m.label).join(', '))}</a>`],
       ].map(([k, v]) => `<div class="kv"><span>${k}</span><span>${v}</span></div>`).join('')}
       <div class="about-label">Ta journée type</div>
       <div class="long-input compact"><textarea id="t-day" maxlength="280" placeholder="Raconte ta journée en quelques mots">${esc(p.dayText || '')}</textarea><button type="button" class="mic-btn in-field" id="t-day-mic" aria-label="Dicter">${micSvg}</button><span class="count">${(p.dayText || '').length} / 280</span></div>

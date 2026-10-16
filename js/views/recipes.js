@@ -45,7 +45,7 @@ function openRecipe(id, ui, nav) {
   openFoodSheet({
     food: { ...food, photo: r.photo || '', quantity: `1 portion = ${fmt(food.serving.grams)} g${r.portions > 1 ? ` · la recette en fait ${r.portions}` : ''}` },
     grams: food.serving.grams,
-    meal: ui.date === dateStr() ? mealForNow() : 'lunch',
+    meal: mealForNow(),
     date: ui.date,
     onDone: () => { ui.justAdded = true; nav.go('#/'); },
     extraHtml: (r.photoCredit && r.photo ? `<p class="small muted" style="margin:10px 2px 0">photo : ${esc(r.photoCredit)}</p>` : '') + (r.preparation ? `<div class="prep-block"><div class="about-label" style="margin-top:0">Préparation</div><p>${esc(r.preparation).replace(/\n/g, '<br>')}</p></div>` : ''),

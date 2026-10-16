@@ -93,6 +93,11 @@ export function tipsFor(p) {
   if ((p.training || []).includes('muscu')) tips.push('Muscu : répartis tes protéines sur 3-4 repas (≈ 25-40 g chacun), c\'est plus efficace que tout d\'un coup.');
   if (p.diet === 'vege' || p.diet === 'vegan') tips.push(`${p.diet === 'vegan' ? 'Vegan' : 'Végétarien'} : vise des protéines à chaque repas (tofu, lentilles, pois chiches, ${p.diet === 'vegan' ? 'seitan, protéine de pois' : 'œufs, skyr, fromage'}). ${p.diet === 'vegan' ? 'Et pense à la vitamine B12 en complément.' : ''}`.trim());
   if (p.cooking === 'never') tips.push('Tu cuisines peu : garde quelques valeurs sûres (skyr, thon, œufs durs, riz en sachet, poulet rôti, wraps) et enregistre tes plats habituels en recettes pour les ajouter en un tap.');
+  const h = p.habits || [];
+  if (h.includes('sweet')) tips.push("Envies de sucré : garde une petite douceur prévue dans ta journée (carré de chocolat noir, fruit, yaourt grec + miel). Ce qui est prévu ne fait pas craquer.");
+  if (h.includes('late')) tips.push('Tu manges tard : garde assez de calories pour le soir plutôt que de te priver la journée, et mise sur un dîner riche en protéines et légumes.');
+  if (h.includes('skip')) tips.push("Tu sautes des repas : prépare une solution rapide pour ces moments (skyr, banane, barre protéinée, sandwich) pour ne pas arriver affamé au repas suivant.");
+  if (h.includes('emotion')) tips.push("Quand tu manges sous le stress ou l'ennui, note-le quand même : savoir ce qui se passe, c'est déjà la moitié du travail. L'IA peut t'aider à trouver des alternatives.");
   if (p.meals === 2) tips.push('Avec 2 repas par jour, répartis tes protéines sur ces deux repas (au moins 40 g chacun) pour atteindre ton objectif.');
   if (p.goal === 'lose') tips.push('Pèse-toi dans les mêmes conditions (le matin, à jeun) et regarde la moyenne de la semaine, pas le chiffre du jour.');
   return tips;

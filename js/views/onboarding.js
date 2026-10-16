@@ -1,42 +1,39 @@
 // Questionnaire de départ : calcule les objectifs à partir de ton profil
 import { esc, icons, num, star, plain, $ } from '../ui.js';
 import { computeTargets, tipsFor, fmt } from '../nutrition.js';
-import { getState, setProfile, setGoals } from '../store.js';
+import { getState, setProfile, setGoals, setMealSlots, MEALS, MEAL_PRESETS, DEFAULT_MEALS } from '../store.js';
+import { OPT, appetiteFrom } from '../answers.js';
 import { attachMic, micSvg } from '../voice.js';
 
 let a = {};      // réponses
 let i = 0;       // étape courante
+
+const o = (k) => OPT[k];
 
 const STEPS = [
   /* ---------- Intro ---------- */
   {
     key: 'intro', kind: 'intro', section: '',
     title: () => `on fait connaissance ${star}`,
-    sub: "2 minutes pour que tes objectifs et l'IA soient vraiment adaptés à toi : ton corps, ton objectif, ton activité et ta façon de manger. Tes réponses restent sur ton téléphone (et dans ton Google Drive si tu actives la synchro).",
+    sub: "3 minutes pour que tes objectifs et l'IA soient vraiment adaptés à toi : ton corps, ton objectif, ton activité et ta façon de manger. Tes réponses restent sur ton téléphone (et dans ton Google Drive si tu actives la synchro).",
   },
 
   /* ---------- 1. Toi ---------- */
   { key: 'name', kind: 'text', optional: true, section: 'toi', title: () => "comment tu t'appelles ?", placeholder: 'ton prénom' },
+  { key: 'sex', kind: 'choice', section: 'toi', title: () => 'tu es…', sub: 'Ça sert à calculer ta dépense de base.', options: o('sex') },
   {
-    key: 'sex', kind: 'choice', section: 'toi',
-    title: () => 'tu es…',
-    sub: 'Ça sert à calculer ta dépense de base.',
-    options: [{ v: 'm', em: '🙋‍♂️', t: 'un homme' }, { v: 'f', em: '🙋‍♀️', t: 'une femme' }],
-  },
-  { key: 'age', kind: 'number', unit: 'ans', min: 13, max: 100, section: 'toi', title: () => 'tu as quel âge ?' },
-  { key: 'height', kind: 'number', unit: 'cm', min: 120, max: 230, section: 'toi', title: () => 'tu mesures combien ?' },
-  { key: 'weight', kind: 'number', unit: 'kg', min: 30, max: 300, decimal: true, section: 'toi', title: () => 'et tu pèses combien ?', sub: "Le matin, à jeun, c'est le plus fiable." },
-
-  /* ---------- 2. Objectif ---------- */
-  {
-    key: 'goal', kind: 'choice', section: 'objectif',
-    title: () => 'ton objectif ?',
-    options: [
-      { v: 'lose', em: '📉', t: 'Perdre du gras' },
-      { v: 'maintain', em: '⚖️', t: 'Garder mon poids', s: 'et mieux manger' },
-      { v: 'gain', em: '📈', t: 'Prendre du muscle' },
+    key: 'body', kind: 'body', section: 'toi',
+    title: () => 'tes mensurations',
+    sub: "Pour le poids, le matin à jeun c'est le plus fiable.",
+    fields: [
+      { key: 'age', label: 'âge', unit: 'ans', min: 13, max: 100 },
+      { key: 'height', label: 'taille', unit: 'cm', min: 120, max: 230 },
+      { key: 'weight', label: 'poids', unit: 'kg', min: 30, max: 300, decimal: true },
     ],
   },
+
+  /* ---------- 2. Objectif ---------- */
+  { key: 'goal', kind: 'choice', section: 'objectif', title: () => 'ton objectif principal ?', sub: 'Celui qui compte pour tes calories.', options: o('goal') },
   {
     key: 'targetWeight', kind: 'number', unit: 'kg', min: 30, max: 300, decimal: true, optional: true, section: 'objectif',
     skip: () => a.goal === 'maintain',
@@ -51,113 +48,62 @@ const STEPS = [
       : [{ v: 'slow', em: '🐢', t: 'Propre', s: 'peu de gras pris, plus lent' }, { v: 'fast', em: '🐇', t: 'Rapide', s: 'plus de poids, un peu plus de gras' }],
   },
   {
+    key: 'extraGoals', kind: 'multi', optional: true, section: 'objectif',
+    title: () => 'et en plus, tu aimerais…',
+    sub: "Plusieurs choix possibles, ou aucun. L'IA s'en sert pour ses conseils.",
+    options: o('extraGoals'),
+  },
+  {
     key: 'whyText', kind: 'longtext', optional: true, max: 200, section: 'objectif',
     title: () => "qu'est-ce qui te motive ?",
     sub: "Facultatif. L'IA s'en sert pour t'encourager au bon moment.",
-    placeholder: 'ex : être plus sec cet été, avoir plus d\'énergie en cours, reprendre le foot sans être essoufflé',
+    placeholder: "ex : être plus sec cet été, avoir plus d'énergie en cours, reprendre le foot sans être essoufflé",
   },
 
   /* ---------- 3. Activité ---------- */
-  {
-    key: 'daily', kind: 'choice', section: 'activité',
-    title: () => 'ta journée type, <em>hors sport</em> ?',
-    options: [
-      { v: 'assis', em: '💻', t: 'Plutôt assis', s: 'bureau, cours, télétravail' },
-      { v: 'debout', em: '🚶', t: 'Souvent debout', s: 'je marche pas mal, vendeur, prof…' },
-      { v: 'physique', em: '🏗️', t: 'Boulot physique', s: 'chantier, livraison, manutention…' },
-    ],
-  },
+  { key: 'daily', kind: 'choice', section: 'activité', title: () => 'ta journée, <em>hors sport</em> ?', options: o('daily') },
   {
     key: 'steps', kind: 'choice', section: 'activité',
     title: () => 'tu fais combien de pas par jour ?',
-    sub: "Regarde dans l'app Santé de ton iPhone (onglet Résumé → Pas), en moyenne.",
-    options: [
-      { v: 'lt5', em: '🐌', t: 'Moins de 5 000' },
-      { v: '5to8', em: '🚶', t: '5 000 à 8 000' },
-      { v: '8to12', em: '🚶‍♂️', t: '8 000 à 12 000' },
-      { v: 'gt12', em: '🏃', t: 'Plus de 12 000' },
-      { v: 'unknown', em: '🤷', t: 'Je ne sais pas' },
-    ],
+    sub: "En moyenne. Tu le trouves dans l'app Santé de ton iPhone (Résumé → Pas).",
+    options: o('steps'),
+  },
+  { key: 'trainFreq', kind: 'choice', section: 'activité', title: () => 'tu fais du sport combien de fois par semaine ?', options: o('trainFreq') },
+  {
+    key: 'trainText', kind: 'longtext', optional: true, max: 280, section: 'activité',
+    title: () => (a.trainFreq === 0 ? 'comment tu bouges au quotidien ?' : 'décris ton sport'),
+    sub: () => (a.trainFreq === 0 ? 'Marche, vélo, escaliers… tout compte.' : "Le sport, la durée des séances, l'intensité, à quel moment de la journée…"),
+    placeholder: () => (a.trainFreq === 0 ? 'ex : pas de sport, mais je marche 30 min par jour et je vais au taf à vélo' : 'ex : muscu 4x/semaine 1h15 le soir en push/pull/legs, foot le dimanche matin'),
   },
   {
     key: 'dayText', kind: 'longtext', optional: true, max: 280, section: 'activité',
     title: () => 'raconte ta journée type',
-    sub: 'Ton taf ou tes cours, tes trajets, tes horaires, quand tu manges…',
-    placeholder: 'ex : étudiant, en cours assis de 9h à 17h, 20 min de marche pour y aller, je bosse debout au resto le samedi',
-  },
-  {
-    key: 'trainFreq', kind: 'choice', section: 'activité',
-    title: () => "tu t'entraînes combien de fois par semaine ?",
-    options: [
-      { v: 0, em: '🛋️', t: 'Jamais ou presque' },
-      { v: 1, em: '🙂', t: '1 à 2 fois' },
-      { v: 2, em: '💪', t: '3 à 4 fois' },
-      { v: 3, em: '🔥', t: '5 fois ou plus' },
-    ],
-  },
-  {
-    key: 'trainText', kind: 'longtext', optional: true, max: 280, section: 'activité',
-    title: () => 'décris ton sport, si tu en fais un',
-    sub: () => (a.trainFreq === 0 ? 'Et sinon, comment tu bouges : marche, vélo, escaliers… tout compte.' : 'Le sport, la durée des séances, l\'intensité, à quel moment de la journée…'),
-    placeholder: () => (a.trainFreq === 0 ? 'ex : pas de sport, mais je marche 30 min par jour et je vais au taf à vélo' : 'ex : muscu 4x/semaine 1h15 le soir en push/pull/legs, foot le dimanche matin'),
+    sub: 'Facultatif. Ton taf ou tes cours, tes trajets, tes horaires…',
+    placeholder: 'ex : étudiant, en cours assis de 9h à 17h, 20 min de marche pour y aller, je bosse au resto le samedi',
   },
 
   /* ---------- 4. Alimentation ---------- */
+  { key: 'diet', kind: 'choice', section: 'alimentation', title: () => 'tu manges plutôt…', options: o('diet') },
+  { key: 'restrictions', kind: 'multi', section: 'alimentation', title: () => 'des restrictions ou allergies ?', sub: 'Plusieurs choix possibles.', options: o('restrictions'), empty: ['none'] },
   {
-    key: 'diet', kind: 'choice', section: 'alimentation',
-    title: () => 'tu manges plutôt…',
-    options: [
-      { v: 'omni', em: '🍗', t: 'De tout' },
-      { v: 'flexi', em: '🥗', t: 'Peu de viande', s: 'flexitarien' },
-      { v: 'pesco', em: '🐟', t: 'Poisson mais pas de viande' },
-      { v: 'vege', em: '🥚', t: 'Végétarien' },
-      { v: 'vegan', em: '🌱', t: 'Vegan' },
-    ],
+    key: 'mealIds', kind: 'multi', section: 'alimentation',
+    title: () => 'tes repas dans la journée',
+    sub: "Coche ceux que tu prends en général. Ce sont les cases de ton journal : tu pourras les renommer, en ajouter ou en retirer dans Options.",
+    options: () => MEAL_PRESETS.map((m) => ({ v: m.id, em: MEAL_EM[m.id] || '🍽️', t: m.label.charAt(0).toUpperCase() + m.label.slice(1), s: `à partir de ${m.hour} h` })),
+    empty: DEFAULT_MEALS.map((m) => m.id),
   },
   {
-    key: 'restrictions', kind: 'multi', section: 'alimentation',
-    title: () => 'des restrictions ou allergies ?',
-    sub: 'Plusieurs choix possibles.',
-    options: [
-      { v: 'none', em: '✅', t: 'Aucune', exclusive: true },
-      { v: 'halal', em: '🕌', t: 'Halal' },
-      { v: 'noPork', em: '🐖', t: 'Sans porc' },
-      { v: 'noLactose', em: '🥛', t: 'Sans lactose' },
-      { v: 'noGluten', em: '🌾', t: 'Sans gluten' },
-      { v: 'noNuts', em: '🥜', t: 'Allergie aux fruits à coque' },
-      { v: 'other', em: '⚠️', t: 'Autre', s: 'précise plus loin' },
-    ],
+    key: 'habits', kind: 'multi', section: 'alimentation',
+    title: () => 'ce qui te ressemble',
+    sub: "Plusieurs choix possibles. Pas de jugement, c'est pour adapter tes objectifs et les conseils.",
+    options: o('habits'), empty: ['nothing'],
   },
+  { key: 'cooking', kind: 'choice', section: 'alimentation', title: () => 'tu cuisines ?', options: o('cooking') },
   {
-    key: 'meals', kind: 'choice', section: 'alimentation',
-    title: () => 'tu manges combien de fois par jour ?',
-    sub: 'Collations comprises, en général.',
-    options: [
-      { v: 2, em: '2️⃣', t: '2 fois', s: 'je saute souvent un repas' },
-      { v: 3, em: '3️⃣', t: '3 fois' },
-      { v: 4, em: '4️⃣', t: '4 fois', s: '3 repas + 1 collation' },
-      { v: 5, em: '5️⃣', t: '5 fois ou plus' },
-    ],
-  },
-  {
-    key: 'appetite', kind: 'choice', section: 'alimentation',
-    title: () => 'et ton appétit ?',
-    sub: "Pas de jugement, c'est pour adapter tes objectifs.",
-    options: [
-      { v: 'petit', em: '🥄', t: 'Petit appétit', s: 'je cale vite' },
-      { v: 'normal', em: '🍽️', t: 'Normal' },
-      { v: 'gros', em: '🍔', t: 'Gros mangeur', s: "j'aime les grosses assiettes" },
-      { v: 'grignote', em: '🍪', t: 'Je grignote beaucoup' },
-    ],
-  },
-  {
-    key: 'cooking', kind: 'choice', section: 'alimentation',
-    title: () => 'tu cuisines ?',
-    options: [
-      { v: 'never', em: '🥡', t: 'Presque jamais', s: 'cantine, tout prêt, livraison' },
-      { v: 'simple', em: '🍳', t: 'Des trucs simples', s: '15 min max' },
-      { v: 'often', em: '👨‍🍳', t: 'Souvent, avec plaisir' },
-    ],
+    key: 'eatPlaces', kind: 'multi', optional: true, section: 'alimentation',
+    title: () => 'tu manges souvent…',
+    sub: "Plusieurs choix possibles. L'IA t'aidera à faire les bons choix au resto ou au self.",
+    options: o('eatPlaces'),
   },
   {
     key: 'foodText', kind: 'longtext', optional: true, max: 280, section: 'alimentation',
@@ -177,6 +123,8 @@ const STEPS = [
   { key: 'result', kind: 'result', section: '' },
 ];
 
+const MEAL_EM = { breakfast: '🥐', brunch: '🍳', lunch: '🍝', snack: '🍎', preworkout: '🍌', postworkout: '🥤', dinner: '🍲', night: '🥛' };
+
 const SECTIONS = ['toi', 'objectif', 'activité', 'alimentation', 'santé'];
 
 const visible = () => STEPS.filter((s) => !s.skip?.());
@@ -184,6 +132,8 @@ const visible = () => STEPS.filter((s) => !s.skip?.());
 export function startOnboarding() {
   const p = getState().profile;
   a = p ? { ...p } : { training: [] };
+  a.mealIds = MEALS.filter((m) => MEAL_PRESETS.some((x) => x.id === m.id)).map((m) => m.id);
+  if (!a.habits && p?.appetite && p.appetite !== 'normal') a.habits = [p.appetite];
   i = 0;
 }
 
@@ -207,6 +157,7 @@ export function renderOnboarding(root, done) {
         <p class="small muted" style="margin:-12px 4px 0">Tu peux aussi parler : touche le micro.</p>`;
     }
     if (st.kind === 'text') body += `<div class="big-input"><input class="text" id="ob-in" type="text" autocomplete="given-name" placeholder="${esc(st.placeholder)}" value="${esc(a[st.key] || '')}" maxlength="30" /></div>`;
+    if (st.kind === 'body') body += `<div class="body-fields">${st.fields.map((f) => `<label class="body-field"><span class="bf-label">${f.label}</span><span class="bf-input"><input data-k="${f.key}" type="text" inputmode="${f.decimal ? 'decimal' : 'numeric'}" placeholder="–" value="${esc(a[f.key] ?? '')}" /><span>${f.unit}</span></span></label>`).join('')}</div>`;
     if (st.kind === 'number') body += `<div class="big-input"><input id="ob-in" type="text" inputmode="${st.decimal ? 'decimal' : 'numeric'}" placeholder="0" value="${esc(a[st.key] ?? '')}" /><span>${st.unit}</span></div>`;
     if (st.kind === 'choice' || st.kind === 'multi') {
       const opts = typeof st.options === 'function' ? st.options() : st.options;
@@ -218,7 +169,8 @@ export function renderOnboarding(root, done) {
   }
 
   const needsNext = st.kind !== 'choice';
-  const nextLabel = st.kind === 'result' ? `c'est parti ✦` : st.kind === 'intro' ? 'commencer' : st.optional && (a[st.key] == null || a[st.key] === '') ? 'passer' : 'continuer';
+  const isEmpty = (v) => v == null || v === '' || (Array.isArray(v) && !v.length);
+  const nextLabel = st.kind === 'result' ? `c'est parti ✦` : st.kind === 'intro' ? 'commencer' : st.optional && isEmpty(a[st.key]) ? 'passer' : 'continuer';
 
   root.innerHTML = `
     <div class="ob">
@@ -238,6 +190,9 @@ export function renderOnboarding(root, done) {
     go(-1);
   };
 
+  const bodyIns = [...root.querySelectorAll('[data-k]')];
+  bodyIns.forEach((el, k) => el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); (bodyIns[k + 1] || $('#ob-next', root))?.[bodyIns[k + 1] ? 'focus' : 'click'](); } }));
+  if (bodyIns.length && !bodyIns[0].value) setTimeout(() => bodyIns[0].focus(), 250);
   const input = $('#ob-in', root);
   if (input) {
     setTimeout(() => input.focus(), 250);
@@ -258,12 +213,19 @@ export function renderOnboarding(root, done) {
       if (st.kind === 'multi') {
         const opts = typeof st.options === 'function' ? st.options() : st.options;
         const excl = opts.filter((o) => o.exclusive).map((o) => o.v);
+        const group = opts.find((o) => o.v === v)?.group;
         let arr = new Set(a[st.key] || []);
         if (arr.has(v)) arr.delete(v);
         else if (excl.includes(v)) arr = new Set([v]);
-        else { excl.forEach((x) => arr.delete(x)); arr.add(v); }
+        else {
+          excl.forEach((x) => arr.delete(x));
+          if (group) opts.filter((o) => o.group === group).forEach((o) => arr.delete(o.v)); // ex : petit OU gros appétit
+          arr.add(v);
+        }
         a[st.key] = [...arr];
+        const y = window.scrollY;
         rerender();
+        window.scrollTo(0, y);
       } else {
         a[st.key] = v;
         b.classList.add('on');
@@ -283,9 +245,28 @@ export function renderOnboarding(root, done) {
       a[st.key] = st.decimal ? Math.round(v * 10) / 10 : Math.round(v);
       return go(1);
     }
-    if (st.kind === 'multi') { if (!(a[st.key] || []).length) a[st.key] = st.key === 'restrictions' ? ['none'] : ['autre']; return go(1); }
+    if (st.kind === 'multi') { if (!(a[st.key] || []).length) a[st.key] = st.empty ? [...st.empty] : []; return go(1); }
+    if (st.kind === 'body') {
+      let ok = true;
+      for (const f of st.fields) {
+        const el = root.querySelector(`[data-k="${f.key}"]`);
+        const v = num(el.value);
+        if (v == null || v < f.min || v > f.max) { ok = false; el.closest('.body-field').animate([{ transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'none' }], { duration: 250 }); continue; }
+        a[f.key] = f.decimal ? Math.round(v * 10) / 10 : Math.round(v);
+      }
+      if (ok) go(1);
+      return;
+    }
     if (st.kind === 'result') {
       a.training = sportsFromText(a.trainText);
+      a.appetite = appetiteFrom(a.habits || []);
+      // les repas choisis deviennent les cases du journal (on garde les repas perso déjà créés)
+      const picked = MEAL_PRESETS.filter((m) => (a.mealIds || []).includes(m.id));
+      const custom = MEALS.filter((m) => !MEAL_PRESETS.some((x) => x.id === m.id));
+      const slots = [...picked.map((m) => MEALS.find((x) => x.id === m.id) || m), ...custom];
+      if (slots.length) setMealSlots(slots);
+      a.meals = slots.length || null;
+      delete a.body;
       if (a.trainFreq === 0 && !a.training.length) a.training = [];
       if (a.goal === 'maintain') { a.pace = null; a.targetWeight = null; }
       const t = computeTargets(a);

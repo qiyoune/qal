@@ -1,6 +1,6 @@
 // Feuilles du bas : fiche aliment (quantité) et création d'aliment perso
 import { esc, num, icons, openSheet, closeSheet, toast, $ } from './ui.js';
-import { MEALS, addEntry, updateEntry, deleteEntry, saveCustomFood, isFav, toggleFav } from './store.js';
+import { MEALS, addToLabel, mealForHour, addEntry, updateEntry, deleteEntry, saveCustomFood, isFav, toggleFav } from './store.js';
 import { scale, fmt } from './nutrition.js';
 import { offAddUrl } from './foods.js';
 
@@ -12,7 +12,7 @@ const badge = (src) => ({ ciqual: '<span class="badge ciqual">ciqual</span>', of
  */
 export function openFoodSheet({ food, grams, meal, date, entryId, onDone, onCancel, extra = [], extraHtml = '' }) {
   let g = grams || food.lastGrams || food.serving?.grams || 100;
-  let m = meal;
+  let m = entryId || MEALS.some((x) => x.id === meal) ? meal : mealForHour();
   const p = food.per100 || {};
 
   const presets = [...new Set([
@@ -45,7 +45,7 @@ export function openFoodSheet({ food, grams, meal, date, entryId, onDone, onCanc
 
     ${extraHtml}
     <div class="chips meal-grid" style="margin-top:16px" id="meal-chips">
-      ${MEALS.map((x) => `<button class="chip ${x.id === m ? 'on' : ''}" data-meal="${x.id}">${x.label}</button>`).join('')}
+      ${MEALS.map((x) => `<button class="chip ${x.id === m ? 'on' : ''}" data-meal="${x.id}">${esc(x.label)}</button>`).join('')}
     </div>
 
     <div class="stack" style="margin-top:16px">
@@ -65,8 +65,7 @@ export function openFoodSheet({ food, grams, meal, date, entryId, onDone, onCanc
       <div><b>${fmt(v.prot, 1)}</b><span>protéines</span></div>
       <div><b>${fmt(v.carb, 1)}</b><span>glucides</span></div>
       <div><b>${fmt(v.fat, 1)}</b><span>lipides</span></div>`;
-    const label = MEALS.find((x) => x.id === m)?.label;
-    save.textContent = entryId ? 'enregistrer' : `ajouter au ${label}`.replace('au collation', 'à la collation');
+    save.textContent = entryId ? 'enregistrer' : addToLabel(m);
     save.disabled = !(g > 0);
   };
 

@@ -1,3 +1,4 @@
+import { mealForHour } from './store.js';
 // Petits utilitaires d'interface
 export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -26,13 +27,7 @@ export function dayLabel(s) {
   if (s === addDays(today, 1)) return 'demain';
   return parseDate(s).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
 }
-export function mealForNow() {
-  const h = new Date().getHours();
-  if (h < 11) return 'breakfast';
-  if (h < 15) return 'lunch';
-  if (h < 18) return 'snack';
-  return 'dinner';
-}
+export function mealForNow() { return mealForHour(); }
 
 /* ---------- Icônes (SVG inline) ---------- */
 const svg = (d, extra = '') => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ${extra}>${d}</svg>`;

@@ -1,6 +1,6 @@
 // Écran principal : le journal du jour
 import { esc, icons, dayLabel, addDays, dateStr, plain, $ } from '../ui.js';
-import { MEALS, entriesFor, getState } from '../store.js';
+import { MEALS, mealLabel, entriesFor, getState } from '../store.js';
 import { totals, scale, fmt } from '../nutrition.js';
 import { starPath, burst } from '../fx.js';
 
@@ -22,14 +22,17 @@ export function renderToday(root, ui, nav) {
     return `<div class="macro"><div class="name">${label}</div><div class="val">${fmt(t[k])}<small> / ${fmt(g[k])} g</small></div><div class="bar-track"><div class="bar-fill ${cls} ${p > 1.08 ? 'over' : ''}" style="width:${Math.min(100, p * 100)}%"></div></div></div>`;
   };
 
-  const meals = MEALS.map((m) => {
+  // repas supprimés des options mais qui ont encore des aliments ce jour-là
+  const orphans = [...new Set(entries.filter((e) => !MEALS.some((m) => m.id === e.meal)).map((e) => e.meal))];
+  const slots = [...MEALS, ...orphans.map((id) => ({ id, label: mealLabel(id), orphan: true }))];
+  const meals = slots.map((m) => {
     const items = entries.filter((e) => e.meal === m.id);
     const kcal = items.reduce((s, e) => s + (scale(e.per100, e.grams).kcal || 0), 0);
     return `
       <div class="card meal section">
         <div class="meal-head">
           <div><div class="meal-title">${plain(m.label)}</div>${items.length ? `<div class="meal-kcal">${fmt(kcal)} kcal</div>` : ''}</div>
-          <button class="add-pill" data-add="${m.id}">${icons.plus.replace('<svg', '<svg width="14" height="14"')} ajouter</button>
+          ${m.orphan ? '' : `<button class="add-pill" data-add="${m.id}">${icons.plus.replace('<svg', '<svg width="14" height="14"')} ajouter</button>`}
         </div>
         ${items.length ? items.map((e) => {
           const v = scale(e.per100, e.grams);

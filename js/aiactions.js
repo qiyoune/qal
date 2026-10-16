@@ -8,7 +8,16 @@ import { scale, fmt, computeTargets } from './nutrition.js';
 import { dateStr, mealForNow } from './ui.js';
 
 const mealLabel = (id) => MEALS.find((m) => m.id === id)?.label || id;
-const validMeal = (m) => (MEALS.some((x) => x.id === m) ? m : mealForNow());
+// accepte l'id ou le nom du repas ("déjeuner", "lunch"…)
+const validMeal = (m) => {
+  if (MEALS.some((x) => x.id === m)) return m;
+  const n = norm(String(m || ''));
+  const byName = MEALS.find((x) => norm(x.label) === n || (n && norm(x.label).includes(n)));
+  if (byName) return byName.id;
+  const alias = { breakfast: ['petit', 'matin'], lunch: ['dejeuner', 'midi'], dinner: ['diner', 'soir'], snack: ['collation', 'gouter', 'snack'] }[m];
+  const byAlias = alias && MEALS.find((x) => alias.some((w) => norm(x.label).includes(w)));
+  return byAlias ? byAlias.id : mealForNow();
+};
 const grams = (g) => Math.max(1, Math.min(3000, Math.round(+g || 0)));
 
 // Cherche l'aliment : d'abord tes aliments et recettes, puis la table Ciqual
@@ -141,7 +150,7 @@ export function proposalHtml(p) {
   if (p.type === 'add') {
     const ok = p.items.filter((i) => i.food);
     const kcal = ok.reduce((s, i) => s + (scale(i.food.per100, i.grams).kcal || 0), 0);
-    return `<div class="ac-title">ajouter au ${esc(mealLabel(p.meal))}${p.date !== dateStr() ? ` · ${esc(p.date)}` : ''}</div><ul>${p.items.map(line).join('')}</ul><div class="ac-total">${fmt(kcal)} kcal</div>`;
+    return `<div class="ac-title">ajouter · ${esc(mealLabel(p.meal))}${p.date !== dateStr() ? ` · ${esc(p.date)}` : ''}</div><ul>${p.items.map(line).join('')}</ul><div class="ac-total">${fmt(kcal)} kcal</div>`;
   }
   if (p.type === 'update') {
     const k = scale(p.per100, p.to.grams).kcal;

@@ -4,6 +4,7 @@ import { AI_ENDPOINT } from './config.js';
 import { getState, entriesFor, MEALS, weightsList } from './store.js';
 import { totals, scale, fmt, computeTargets } from './nutrition.js';
 import { dateStr, addDays } from './ui.js';
+import { label as ansLabel } from './answers.js';
 
 const KEY = 'qal:chat';
 
@@ -33,7 +34,9 @@ export function buildContext(date = dateStr()) {
   const now = new Date();
   lines.push(`Nous sommes le ${date}, il est ${now.getHours()}h${String(now.getMinutes()).padStart(2, '0')}.`);
   lines.push(`Profil : ${p.name || 'utilisateur'}, ${p.sex === 'f' ? 'femme' : 'homme'}, ${p.age} ans, ${p.height} cm, ${p.weight} kg.`);
-  lines.push(`Objectif : ${{ lose: 'perdre du gras', maintain: 'maintenir son poids', gain: 'prendre du muscle' }[p.goal] || '?'}. Appétit : ${p.appetite || '?'}.`);
+  lines.push(`Objectif : ${{ lose: 'perdre du gras', maintain: 'maintenir son poids', gain: 'prendre du muscle' }[p.goal] || '?'}.${(p.extraGoals || []).length ? ` Il aimerait aussi : ${ansLabel('extraGoals', p.extraGoals)}.` : ''}`);
+  if ((p.habits || []).length) lines.push(`Ses habitudes : ${ansLabel('habits', p.habits)}.`);
+  else if (p.appetite) lines.push(`Appétit : ${p.appetite}.`);
   const L = {
     daily: { assis: 'plutôt assis', debout: 'souvent debout', physique: 'boulot physique' },
     steps: { lt5: 'moins de 5 000', '5to8': '5 000 à 8 000', '8to12': '8 000 à 12 000', gt12: 'plus de 12 000', unknown: 'inconnu' },
@@ -48,7 +51,9 @@ export function buildContext(date = dateStr()) {
   lines.push(`Activité : journée ${L.daily[p.daily] || '?'}, pas par jour ${L.steps[p.steps] || '?'}, sport ${L.trainFreq[p.trainFreq] || '?'}${(p.training || []).length ? ' (' + p.training.join(', ') + ')' : ''}.`);
   if (p.dayText) lines.push(`Sa journée type (écrit par lui) : « ${p.dayText} »`);
   if (p.trainText) lines.push(`Son entraînement (écrit par lui) : « ${p.trainText} »`);
-  lines.push(`Alimentation : ${L.diet[p.diet] || '?'} ; restrictions : ${(p.restrictions || []).map((r) => L.restrictions[r] || r).join(', ') || '?'} ; ${p.meals ? p.meals + ' prises alimentaires par jour' : ''} ; ${L.cooking[p.cooking] || ''}.`);
+  lines.push(`Alimentation : ${L.diet[p.diet] || '?'} ; restrictions : ${(p.restrictions || []).map((r) => L.restrictions[r] || r).join(', ') || '?'} ; ${L.cooking[p.cooking] || ''}.`);
+  if ((p.eatPlaces || []).length) lines.push(`Il mange souvent : ${ansLabel('eatPlaces', p.eatPlaces)}.`);
+  lines.push(`Ses repas (cases de son journal, id=nom) : ${MEALS.map((m) => `${m.id}=${m.label} (dès ${m.hour ?? '?'}h)`).join(', ')}.`);
   if (p.foodText) lines.push(`Goûts (écrit par lui) : « ${p.foodText} »`);
   if (p.healthText) lines.push(`Santé (écrit par lui) : « ${p.healthText} » — en tenir compte, sans poser de diagnostic.`);
   const tg = p.weight ? computeTargets(p) : null;
@@ -107,7 +112,7 @@ Tu n'es pas médecin : en cas de question médicale ou de trouble alimentaire, o
 Tu peux agir sur l'appli avec tes outils : ajouter des aliments au journal (add_foods), modifier ou supprimer une entrée existante (update_entry, delete_entry, avec son id du contexte), créer une recette (create_recipe), changer ses objectifs (update_goals). Pour create_recipe, donne toujours photo_query : l'appli trouve une photo du plat.
 - Utilise-les quand l'utilisateur dit ce qu'il a mangé ou demande de modifier son journal ou de créer une recette. Il validera lui-même avant que ce soit appliqué.
 - Pour chaque aliment, donne un nom générique en français façon table Ciqual, aliment principal en premier puis précisions (ex : "riz basmati cuit", "poulet poitrine cuit", "pomme crue", "huile olive", "pates alimentaires cuites"), et une quantité en grammes réaliste (1 oeuf ≈ 55 g, 1 c. à soupe d'huile ≈ 10 g). N'invente jamais les calories : l'appli les calcule.
-- Choisis le repas (breakfast, lunch, snack, dinner) selon ce qu'il dit, sinon selon l'heure.
+- Choisis le repas parmi SES repas (liste « Ses repas » du contexte, avec leur id) selon ce qu'il dit, sinon selon l'heure.
 - Accompagne toujours l'action d'une phrase courte.
 
 Objectifs : s'il veut aller plus vite, ralentir, changer de but, de poids visé ou de calories, utilise update_goals.
@@ -124,7 +129,7 @@ Bilan de la semaine : appuie-toi sur les 7 jours précédents et les pesées du 
 const GAPI = 'https://generativelanguage.googleapis.com/v1beta';
 
 const ITEMS = { type: 'ARRAY', items: { type: 'OBJECT', properties: { name: { type: 'STRING', description: 'nom générique de l\'aliment' }, grams: { type: 'NUMBER' } }, required: ['name', 'grams'] } };
-const MEAL = { type: 'STRING', enum: ['breakfast', 'lunch', 'snack', 'dinner'] };
+const MEAL = { type: 'STRING', description: 'id du repas, pris dans la liste « Ses repas » du contexte' };
 const TOOLS = [{ functionDeclarations: [
   { name: 'add_foods', description: 'Ajoute des aliments au journal', parameters: { type: 'OBJECT', properties: { meal: MEAL, date: { type: 'STRING', description: 'YYYY-MM-DD, aujourd\'hui par défaut' }, items: ITEMS }, required: ['meal', 'items'] } },
   { name: 'update_entry', description: 'Modifie la quantité ou le repas d\'une entrée du journal', parameters: { type: 'OBJECT', properties: { id: { type: 'STRING' }, grams: { type: 'NUMBER' }, meal: MEAL }, required: ['id'] } },

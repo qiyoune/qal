@@ -32,7 +32,7 @@ const nav = {
   },
   render,
   openAdd(meal, tab) {
-    ui.addMeal = meal || (ui.date === dateStr() ? mealForNow() : 'lunch');
+    ui.addMeal = meal || (mealForNow());
     ui.addTab = tab || 'search';
     ui.query = '';
     nav.go('#/add');
