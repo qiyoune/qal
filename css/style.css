@@ -548,10 +548,11 @@ body.has-tabbar #toast { bottom: calc(var(--safe-bottom) + 98px); }
 html:root[data-theme="dark"] .star-track { fill: #362C28; }
 
 /* Chat IA : l'étoile crème du bouton grandit et devient le fond du chat */
-:root { --chat-bg: #E5DACF; }
-html:root[data-theme="dark"] { --chat-bg: #2E2622; }
-body.page-chat { --bg: var(--chat-bg); --surface: #FBF8F5; }
-html:root[data-theme="dark"] body.page-chat { --surface: #3A302B; }
+:root { --chat-bg: #FFFFFF; }
+html:root[data-theme="dark"] { --chat-bg: #1C1715; }
+body.page-chat { --bg: var(--chat-bg); --bg-alt: #F2F1F0; --surface: #F4F2F0; }
+html:root[data-theme="dark"] body.page-chat { --bg-alt: #2B2421; --surface: #2B2421; }
+body.page-chat #sparkles { display: none; }
 .micro-summary { font-size: 14px; color: var(--text-body); margin: 14px 4px 0; line-height: 1.5; }
 
 /* ---------- Recette : bloc "1 portion" ---------- */
