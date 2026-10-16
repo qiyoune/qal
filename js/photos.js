@@ -43,11 +43,11 @@ export async function findDishPhotos(query) {
 
 // Télécharge la photo et la garde dans la recette (marche hors ligne). Si le site
 // ne le permet pas, on garde simplement le lien.
-export function urlToDataUrl(url, w = 640, h = 480, q = 0.72) {
+export function urlToDataUrl(url, w = 640, h = 480, q = 0.72, ms = 12000) {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.crossOrigin = 'anonymous';
-    const t = setTimeout(() => reject(new Error('timeout')), 12000);
+    if (!url.startsWith('data:')) img.crossOrigin = 'anonymous';
+    const t = setTimeout(() => reject(new Error('timeout')), ms);
     img.onload = () => {
       clearTimeout(t);
       try {
@@ -62,4 +62,16 @@ export function urlToDataUrl(url, w = 640, h = 480, q = 0.72) {
     img.onerror = () => { clearTimeout(t); reject(new Error('image')); };
     img.src = url;
   });
+}
+
+// Aucune photo trouvée : on en génère une. D'abord Gemini (ta clé), sinon Pollinations (gratuit, sans clé).
+export async function generateDishPhoto(name, generateWithGemini) {
+  const prompt = `Photo culinaire réaliste, vue de trois quarts, lumière naturelle douce, fond simple, appétissante : ${name}. Pas de texte, pas de logo.`;
+  try {
+    const raw = await withTimeout(generateWithGemini(prompt), 40000);
+    return { url: await urlToDataUrl(raw), credit: 'image générée par IA (Gemini)', ai: true };
+  } catch {}
+  const en = `realistic food photography, three-quarter view, soft natural light, simple background, appetizing: ${name}. no text`;
+  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(en)}?width=640&height=480&nologo=true&seed=${Math.floor(Math.random() * 1e6)}`;
+  return { url: await urlToDataUrl(url, 640, 480, 0.72, 45000), credit: 'image générée par IA', ai: true };
 }

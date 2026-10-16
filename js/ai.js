@@ -193,6 +193,28 @@ async function askGemini(key, history, context) {
   throw lastErr || new Error('gemini');
 }
 
+// Génère une photo du plat avec Gemini (si ta clé y a droit). Renvoie une data URL ou lance une erreur.
+const IMAGE_MODELS = ['gemini-2.5-flash-image', 'gemini-2.0-flash-preview-image-generation'];
+export async function generateDishImage(prompt) {
+  const key = getGeminiKey();
+  if (!key) throw new Error('pas de clé');
+  let last;
+  for (const m of IMAGE_MODELS) {
+    try {
+      const r = await gfetch(key, `${GAPI}/models/${m}:generateContent`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } }),
+      });
+      if (!r.ok) { last = new Error('image ' + r.status); continue; }
+      const j = await r.json();
+      const part = (j.candidates?.[0]?.content?.parts || []).find((x) => x.inlineData?.data);
+      if (part) return `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
+      last = new Error('pas d\'image');
+    } catch (e) { last = e; }
+  }
+  throw last || new Error('image');
+}
+
 export async function testGeminiKey(key) {
   const reply = await askGemini(key.trim().replace(/^['"]|['"]$/g, ''), [{ role: 'user', text: 'Réponds juste : ok' }], '');
   return !!reply;

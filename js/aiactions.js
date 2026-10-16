@@ -171,7 +171,8 @@ export function proposalHtml(p) {
     const ok = p.ingredients.filter((i) => i.food);
     const tot = ok.reduce((s, i) => s + (scale(i.food.per100, i.grams).kcal || 0), 0);
     const ph = p.photos?.[p.photoIdx];
-    const photoHtml = p.photos?.length ? `<div class="ac-photo">${ph ? `<img src="${esc(ph.url)}" alt="" loading="lazy" onerror="this.style.opacity=0" />` : '<span class="ac-nophoto">sans photo</span>'}${p.status === 'pending' || !p.status ? `<button type="button" class="rp-btn" data-photo>${ph ? 'autre photo' : 'remettre une photo'}</button>` : ''}</div>${ph ? `<div class="ac-credit">photo : ${esc(ph.credit)}</div>` : ''}` : '';
+    const photoHtml = p.photoGen === 'busy' ? '<div class="ac-photo"><span class="ac-nophoto">je génère une photo du plat…</span></div>'
+      : p.photos?.length ? `<div class="ac-photo">${ph ? `<img src="${esc(ph.url)}" alt="" loading="lazy" onerror="this.style.opacity=0" />` : '<span class="ac-nophoto">sans photo</span>'}${p.status === 'pending' || !p.status ? `<button type="button" class="rp-btn" data-photo>${ph ? 'autre photo' : 'remettre une photo'}</button>` : ''}</div>${ph ? `<div class="ac-credit">photo : ${esc(ph.credit)}</div>` : ''}` : '';
     return `${photoHtml}<div class="ac-title">nouvelle recette : ${esc(p.name)}</div><ul>${p.ingredients.map(line).join('')}</ul><div class="ac-total">${fmt(tot / p.portions)} kcal / portion · ${p.portions} portion${p.portions > 1 ? 's' : ''}</div>${p.preparation ? `<p class="ac-prep">${esc(p.preparation).replace(/\n/g, '<br>')}</p>` : ''}`;
   }
   return '';

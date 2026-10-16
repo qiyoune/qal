@@ -1,6 +1,7 @@
 // Chat avec l'IA
 import { esc, icons, $ } from '../ui.js';
-import { loadChat, saveChat, clearChat, ask, isOnline } from '../ai.js';
+import { loadChat, saveChat, clearChat, ask, isOnline, generateDishImage } from '../ai.js';
+import { generateDishPhoto } from '../photos.js';
 import { getState } from '../store.js';
 import { resolveCalls, proposalHtml, applyProposal, canApply, proposalSummary } from '../aiactions.js';
 import { toast } from '../ui.js';
@@ -103,6 +104,15 @@ export function renderChat(root, ui, nav) {
       const proposals = reply.calls?.length ? await resolveCalls(reply.calls) : [];
       const text = reply.text || (proposals.length ? 'Voilà ce que je propose, valide si c\'est bon :' : '…');
       msgs.push({ role: 'assistant', text, actions: proposals.map((p) => ({ p, status: 'pending' })), at: Date.now() });
+      // recette sans photo trouvée : on en génère une en arrière-plan
+      for (const p of proposals) {
+        if (p.type !== 'recipe' || p.photos?.length) continue;
+        p.photoGen = 'busy';
+        generateDishPhoto(p.name, generateDishImage)
+          .then((ph) => { p.photos = [ph]; p.photoIdx = 0; })
+          .catch(() => {})
+          .finally(() => { p.photoGen = 'done'; saveChat(msgs); if (document.body.contains(list)) draw(); });
+      }
     } catch (e) {
       const text = e.badKey ? 'Ta clé Gemini est refusée. Vérifie-la dans Options → IA.'
         : e.quota ? 'Limite gratuite de Gemini atteinte pour le moment. Réessaie dans une minute (ou demain si c\'est la limite du jour).'
