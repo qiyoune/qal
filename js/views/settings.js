@@ -57,7 +57,8 @@ export function renderSettings(root, ui, nav) {
       qal ✦ — fait par <a href="https://qiyoune.com" target="_blank" rel="noopener">qiyoune</a><br>
       Produits : <a href="https://fr.openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a> (licence ODbL) ·
       Aliments bruts : <a href="https://ciqual.anses.fr" target="_blank" rel="noopener">table Ciqual 2020, ANSES</a> (Licence Ouverte)<br>
-      Les objectifs sont des estimations, pas un avis médical.
+      Les objectifs sont des estimations, pas un avis médical.<br>
+      <a href="confidentialite.html">Confidentialité</a>
     </p>`;
 
   $('#o-back', root).onclick = () => (history.length > 1 ? history.back() : nav.go('#/'));

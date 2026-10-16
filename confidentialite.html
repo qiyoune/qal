@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>qal ✦ · confidentialité</title>
+  <meta name="description" content="Ce que qal fait (et ne fait pas) de tes données." />
+  <link rel="icon" type="image/png" href="icons/favicon-32.png" />
+  <style>
+    @font-face { font-family: "Alstoria"; src: url("fonts/alstoria.woff") format("woff"); font-display: swap; unicode-range: U+0041-005A, U+0061-007A, U+0020; }
+    :root { --accent: #DA371D; --bg: #F2F1F0; --surface: #FFFFFF; --ink: #1A1A1A; --text: #44474A; --muted: #6B7280; --border: rgba(26,26,26,.08); }
+    @media (prefers-color-scheme: dark) { :root { --bg: #1C1715; --surface: #251F1C; --ink: #F4EFEA; --text: #D9D2CC; --muted: #A39A93; --border: rgba(255,255,255,.08); } }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Manrope", "Segoe UI", sans-serif; }
+    main { max-width: 680px; margin: 0 auto; padding: 40px 16px 64px; }
+    h1 { font-family: "Alstoria", Georgia, serif; font-weight: 400; font-size: 40px; color: var(--ink); margin: 0 0 6px; letter-spacing: -0.01em; }
+    h1 span { color: var(--accent); }
+    .date { color: var(--muted); font-size: 14px; margin: 0 0 28px; }
+    section { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 18px 20px; margin-bottom: 12px; }
+    h2 { font-size: 17px; color: var(--ink); margin: 0 0 6px; }
+    p, li { margin: 0 0 8px; }
+    ul { padding-left: 20px; margin: 0; }
+    a { color: var(--accent); }
+    .lead { font-size: 18px; color: var(--ink); margin-bottom: 24px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>confidentialite <span>✦</span></h1>
+  <p class="date">Dernière mise à jour : 16 octobre 2026</p>
+  <p class="lead">En bref : qal n'a pas de serveur. Tes données restent sur ton téléphone et, si tu le choisis, dans ton propre Google Drive. Personne d'autre n'y a accès, pas même le créateur de l'appli.</p>
+
+  <section>
+    <h2>Ce que l'appli enregistre</h2>
+    <p>Ton profil (réponses au questionnaire, objectifs), ton journal alimentaire, tes recettes, tes aliments perso et tes pesées. Tout est stocké dans le navigateur de ton appareil.</p>
+  </section>
+
+  <section>
+    <h2>Synchro Google Drive (facultative)</h2>
+    <p>Si tu te connectes avec Google, qal enregistre une copie de tes données dans un dossier caché réservé à l'appli dans ton Google Drive (« appDataFolder »).</p>
+    <ul>
+      <li>qal ne voit ni ne lit aucun autre fichier de ton Drive.</li>
+      <li>qal n'accède ni à tes e-mails, ni à tes contacts, ni à ton nom.</li>
+      <li>Tu peux te déconnecter à tout moment dans Options, et supprimer les données de l'appli depuis les paramètres de ton Google Drive (Gérer les applications).</li>
+    </ul>
+    <p>L'utilisation des données reçues des API Google respecte les <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener">règles relatives aux données utilisateur des services API Google</a>, y compris les exigences d'utilisation limitée.</p>
+  </section>
+
+  <section>
+    <h2>Assistant IA (facultatif)</h2>
+    <p>Si tu ajoutes ta propre clé (Gemini, Claude ou ChatGPT), tes messages, tes photos et un résumé de ton profil et de ta journée sont envoyés directement depuis ton appareil au fournisseur que tu as choisi (Google, Anthropic ou OpenAI), selon ses propres conditions. Ta clé reste sur ton appareil.</p>
+  </section>
+
+  <section>
+    <h2>Services utilisés</h2>
+    <ul>
+      <li><b>Open Food Facts</b> : quand tu scannes ou cherches un produit, son code-barres ou ta recherche est envoyé à Open Food Facts.</li>
+      <li><b>Photos de recettes</b> : le nom d'un plat peut être envoyé à Openverse, Wikimedia Commons ou Pollinations pour trouver ou générer une photo.</li>
+      <li><b>GitHub Pages</b> héberge l'appli (comme tout site web, il peut garder des journaux techniques de visite).</li>
+    </ul>
+    <p>Aucune publicité, aucun traceur, aucune revente de données.</p>
+  </section>
+
+  <section>
+    <h2>Tes droits</h2>
+    <p>Tu peux exporter ou effacer toutes tes données à tout moment dans Options → sauvegarde. Pour toute question : <a href="mailto:contact.qiyoune@gmail.com">contact.qiyoune@gmail.com</a>.</p>
+  </section>
+
+  <p style="text-align:center;margin-top:24px"><a href="./">← retour à qal</a></p>
+</main>
+</body>
+</html>
