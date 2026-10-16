@@ -10,6 +10,7 @@ const SUGGESTIONS = [
   'J\'ai mangé 200 g de riz et un blanc de poulet ce midi',
   'Qu\'est-ce que je mange ce soir ?',
   'Fais-moi un bilan de la semaine',
+  'Je veux aller plus vite',
   'Crée-moi une recette de bowl protéiné pour 2',
 ];
 

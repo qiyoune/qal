@@ -1,9 +1,9 @@
 // Actions proposées par l'IA : on trouve les vrais aliments (Ciqual / tes aliments),
 // on affiche une carte, et rien n'est appliqué sans "valider".
 import { esc } from './ui.js';
-import { getState, MEALS, addEntry, updateEntry, deleteEntry, saveRecipe, saveCustomFood, recentFoods, customFoods, listRecipes, recipeAsFood } from './store.js';
+import { getState, MEALS, setProfile, setGoals, addEntry, updateEntry, deleteEntry, saveRecipe, saveCustomFood, recentFoods, customFoods, listRecipes, recipeAsFood } from './store.js';
 import { loadCiqual, norm } from './foods.js';
-import { scale, fmt } from './nutrition.js';
+import { scale, fmt, computeTargets } from './nutrition.js';
 import { dateStr, mealForNow } from './ui.js';
 
 const mealLabel = (id) => MEALS.find((m) => m.id === id)?.label || id;
@@ -76,6 +76,9 @@ export async function resolveCalls(calls) {
       out.push({ type: 'food', name: String(a.name || 'Produit').slice(0, 60), brand: String(a.brand || '').slice(0, 40), code: String(a.barcode || '').replace(/\D/g, ''),
         per100: { kcal: n(a.kcal), prot: n(a.prot), carb: n(a.carb), fat: n(a.fat), sugar: n(a.sugar), fiber: n(a.fiber), salt: n(a.salt) },
         serving: n(a.serving_grams) ? { grams: n(a.serving_grams), label: 'portion' } : null });
+    } else if (c.name === 'update_goals') {
+      const g = goalsProposal(a);
+      if (g) out.push(g);
     } else if (c.name === 'create_recipe') {
       const ingredients = [];
       for (const it of a.ingredients || []) ingredients.push({ query: it.name, grams: grams(it.grams), food: clean(await findFood(it.name)) });
@@ -84,6 +87,48 @@ export async function resolveCalls(calls) {
   }
   return out;
 }
+
+// Nouveaux objectifs : on recalcule tout nous-mêmes, avec des garde-fous
+const GOALS = { lose: 'perdre du gras', maintain: 'maintenir', gain: 'prendre du muscle' };
+const PACE = { slow: 'tranquille', fast: 'soutenu' };
+function goalsProposal(a) {
+  const st = getState();
+  const p = st.profile, old = st.goals;
+  if (!p || !old) return null;
+  const np = { ...p };
+  if (GOALS[a.goal]) np.goal = a.goal;
+  if (PACE[a.pace]) np.pace = a.pace;
+  const tw = +a.target_weight;
+  if (tw >= 30 && tw <= 250) np.targetWeight = Math.round(tw * 10) / 10;
+  if (np.goal === 'maintain') { np.pace = null; np.targetWeight = null; }
+  else if (!np.pace) np.pace = 'slow';
+  const t = computeTargets(np);
+  const floor = np.sex === 'f' ? 1200 : 1400;
+  let kcal = t.kcal, limited = false;
+  const ask = +a.kcal || (a.prot && a.carb && a.fat ? a.prot * 4 + a.carb * 4 + a.fat * 9 : 0);
+  if (ask) {
+    const lo = Math.max(floor, Math.round(t.tdee * 0.75)), hi = Math.round(t.tdee * 1.3);
+    kcal = Math.round(Math.min(hi, Math.max(lo, ask)) / 10) * 10;
+    limited = Math.abs(kcal - ask) > 15;
+  }
+  const r = (v, lo, hi) => Math.round(Math.min(hi, Math.max(lo, +v)));
+  const prot = a.prot ? r(a.prot, 40, 350) : t.prot;
+  const fat = a.fat ? r(a.fat, 30, 250) : Math.round(Math.max(np.weight * 0.8, (kcal * 0.25) / 9));
+  const carb = a.carb && !limited ? r(a.carb, 30, 700) : Math.max(50, Math.round((kcal - prot * 4 - fat * 9) / 4));
+  let weeks = null;
+  if (np.targetWeight && np.goal !== 'maintain') {
+    const perWeek = Math.abs(kcal - t.tdee) * 7 / 7700;
+    const right = (np.goal === 'lose' && np.targetWeight < np.weight) || (np.goal === 'gain' && np.targetWeight > np.weight);
+    if (right && perWeek > 0.05) weeks = Math.round(Math.abs(np.targetWeight - np.weight) / perWeek);
+  }
+  return {
+    type: 'goals', limited, weeks, tdee: t.tdee, reason: String(a.reason || '').slice(0, 200),
+    from: { goal: p.goal, pace: p.pace, targetWeight: p.targetWeight, kcal: old.kcal, prot: old.prot, carb: old.carb, fat: old.fat },
+    to: { goal: np.goal, pace: np.pace, targetWeight: np.targetWeight, kcal, prot, carb, fat, fiber: Math.round((kcal / 1000) * 14) },
+    custom: !!ask || !!a.prot || !!a.carb || !!a.fat,
+  };
+}
+const chg = (label, a, b, unit = '') => `<li><span>${label}</span><b>${a === b ? `${esc(b ?? '–')}${unit}` : `${esc(a ?? '–')}${unit} → ${esc(b ?? '–')}${unit}`}</b></li>`;
 
 const line = (it) => it.food
   ? `<li><span>${esc(it.food.name)}</span><b>${fmt(it.grams)} g · ${fmt(scale(it.food.per100, it.grams).kcal)} kcal</b></li>`
@@ -108,6 +153,16 @@ export function proposalHtml(p) {
       ${v.sugar != null || v.fiber != null || v.salt != null ? `<li><span>sucres · fibres · sel</span><b>${fmt(v.sugar, 1)} · ${fmt(v.fiber, 1)} · ${fmt(v.salt, 2)} g</b></li>` : ''}
       ${p.code ? `<li><span>code-barres</span><b>${esc(p.code)}</b></li>` : ''}
     </ul>`;
+  }
+  if (p.type === 'goals') {
+    const f = p.from, t = p.to;
+    return `<div class="ac-title">nouvel objectif</div><ul>
+      ${f.goal !== t.goal ? chg('but', GOALS[f.goal], GOALS[t.goal]) : ''}
+      ${(f.pace || null) !== (t.pace || null) ? chg('rythme', PACE[f.pace] || '–', PACE[t.pace] || '–') : ''}
+      ${(f.targetWeight || null) !== (t.targetWeight || null) ? chg('poids visé', f.targetWeight || '–', t.targetWeight || '–', ' kg') : ''}
+      ${chg('calories', f.kcal, t.kcal, ' kcal')}
+      <li><span>protéines · glucides · lipides</span><b>${t.prot} · ${t.carb} · ${t.fat} g</b></li>
+    </ul><div class="ac-total">${p.weeks ? `poids visé dans ≈ ${p.weeks} semaine${p.weeks > 1 ? 's' : ''}` : `dépense ≈ ${fmt(p.tdee)} kcal`}</div>${p.limited ? '<p class="ac-prep">Limité pour rester sain : au-delà, tu perdrais surtout du muscle et de l\'énergie.</p>' : ''}`;
   }
   if (p.type === 'recipe') {
     const ok = p.ingredients.filter((i) => i.food);
@@ -135,6 +190,13 @@ export function applyProposal(p) {
     saveCustomFood({ name: p.name, brand: p.brand, code: p.code, per100: p.per100, serving: p.serving });
     return 'aliment enregistré ✦ (retrouve-le dans la recherche)';
   }
+  if (p.type === 'goals') {
+    const st = getState();
+    const { kcal, prot, carb, fat, fiber, goal, pace, targetWeight } = p.to;
+    setProfile({ ...st.profile, goal, pace, targetWeight });
+    setGoals({ ...st.goals, kcal, prot, carb, fat, fiber, custom: p.custom });
+    return 'objectif mis à jour ✦';
+  }
   if (p.type === 'recipe') {
     saveRecipe({ name: p.name, portions: p.portions, preparation: p.preparation, ingredients: p.ingredients.filter((i) => i.food).map((i) => ({ ...i.food, grams: i.grams })) });
     return 'recette enregistrée ✦';
@@ -150,5 +212,6 @@ export function proposalSummary(p, status) {
   if (p.type === 'delete') return `[action ${st} : suppression de ${p.name}]`;
   if (p.type === 'recipe') return `[action ${st} : recette ${p.name}]`;
   if (p.type === 'food') return `[action ${st} : aliment ${p.name}]`;
+  if (p.type === 'goals') return `[action ${st} : objectif ${p.to.goal}${p.to.pace ? ' ' + p.to.pace : ''}, ${p.to.kcal} kcal, P ${p.to.prot} g${p.limited ? ' (limité par les garde-fous)' : ''}]`;
   return '';
 }

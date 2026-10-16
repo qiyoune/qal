@@ -2,7 +2,7 @@
 // La clé API ne doit JAMAIS être dans l'appli : elle reste dans le proxy (serveur).
 import { AI_ENDPOINT } from './config.js';
 import { getState, entriesFor, MEALS, weightsList } from './store.js';
-import { totals, scale, fmt } from './nutrition.js';
+import { totals, scale, fmt, computeTargets } from './nutrition.js';
 import { dateStr, addDays } from './ui.js';
 
 const KEY = 'qal:chat';
@@ -51,7 +51,8 @@ export function buildContext(date = dateStr()) {
   lines.push(`Alimentation : ${L.diet[p.diet] || '?'} ; restrictions : ${(p.restrictions || []).map((r) => L.restrictions[r] || r).join(', ') || '?'} ; ${p.meals ? p.meals + ' prises alimentaires par jour' : ''} ; ${L.cooking[p.cooking] || ''}.`);
   if (p.foodText) lines.push(`Goûts (écrit par lui) : « ${p.foodText} »`);
   if (p.healthText) lines.push(`Santé (écrit par lui) : « ${p.healthText} » — en tenir compte, sans poser de diagnostic.`);
-  lines.push(`Objectifs du jour : ${g.kcal} kcal, P ${g.prot} g, G ${g.carb} g, L ${g.fat} g.`);
+  const tg = p.weight ? computeTargets(p) : null;
+  lines.push(`Objectifs du jour : ${g.kcal} kcal, P ${g.prot} g, G ${g.carb} g, L ${g.fat} g${g.custom ? ' (réglés à la main)' : ''}.${tg ? ` Dépense estimée : ${tg.tdee} kcal/jour.` : ''}${tg?.weeks && !g.custom ? ` Poids visé atteint dans environ ${tg.weeks} semaines.` : ''}`);
   lines.push(`Mangé aujourd'hui (${date}) : ${fmt(t.kcal)} kcal, P ${fmt(t.prot)} g, G ${fmt(t.carb)} g, L ${fmt(t.fat)} g, fibres ${fmt(t.fiber)} g.`);
   for (const m of MEALS) {
     const items = entries.filter((e) => e.meal === m.id);
@@ -88,11 +89,16 @@ Réponses courtes (3 à 6 phrases), avec des quantités précises en grammes qua
 Tu n'inventes pas ce qu'il a mangé : tu utilises le contexte. Respecte TOUJOURS son régime, ses restrictions et allergies dans tes idées de repas, et adapte la difficulté des recettes à sa façon de cuisiner.
 Tu n'es pas médecin : en cas de question médicale ou de trouble alimentaire, oriente vers un professionnel.
 
-Tu peux agir sur l'appli avec tes outils : ajouter des aliments au journal (add_foods), modifier ou supprimer une entrée existante (update_entry, delete_entry, avec son id du contexte), créer une recette (create_recipe).
+Tu peux agir sur l'appli avec tes outils : ajouter des aliments au journal (add_foods), modifier ou supprimer une entrée existante (update_entry, delete_entry, avec son id du contexte), créer une recette (create_recipe), changer ses objectifs (update_goals).
 - Utilise-les quand l'utilisateur dit ce qu'il a mangé ou demande de modifier son journal ou de créer une recette. Il validera lui-même avant que ce soit appliqué.
 - Pour chaque aliment, donne un nom générique en français façon table Ciqual, aliment principal en premier puis précisions (ex : "riz basmati cuit", "poulet poitrine cuit", "pomme crue", "huile olive", "pates alimentaires cuites"), et une quantité en grammes réaliste (1 oeuf ≈ 55 g, 1 c. à soupe d'huile ≈ 10 g). N'invente jamais les calories : l'appli les calcule.
 - Choisis le repas (breakfast, lunch, snack, dinner) selon ce qu'il dit, sinon selon l'heure.
 - Accompagne toujours l'action d'une phrase courte.
+
+Objectifs : s'il veut aller plus vite, ralentir, changer de but, de poids visé ou de calories, utilise update_goals.
+- D'abord le rythme (pace fast = environ -20 % en sèche, +12 % en prise). Ne donne kcal que s'il demande un chiffre ou veut encore plus rapide.
+- Jamais plus de 25 % sous sa dépense, ni moins de 1200 kcal (femme) / 1400 kcal (homme) : l'appli bloque de toute façon. Si sa demande est trop agressive, dis-le franchement et propose le maximum raisonnable (0,5 à 1 % du poids par semaine).
+- Ne touche pas aux protéines sauf demande : l'appli les garde.
 
 Photos :
 - Photo d'assiette ou de plat : identifie chaque aliment visible, estime les grammes honnêtement (huile, sauce, fromage : ne les oublie pas, et plutôt un peu au-dessus qu'en dessous), puis propose add_foods. Dis en une phrase ce que tu as vu et que l'utilisateur peut corriger les grammes.
@@ -109,6 +115,7 @@ const TOOLS = [{ functionDeclarations: [
   { name: 'update_entry', description: 'Modifie la quantité ou le repas d\'une entrée du journal', parameters: { type: 'OBJECT', properties: { id: { type: 'STRING' }, grams: { type: 'NUMBER' }, meal: MEAL }, required: ['id'] } },
   { name: 'delete_entry', description: 'Supprime une entrée du journal', parameters: { type: 'OBJECT', properties: { id: { type: 'STRING' } }, required: ['id'] } },
   { name: 'create_food', description: 'Crée un aliment perso à partir d\'une étiquette nutritionnelle (valeurs pour 100 g)', parameters: { type: 'OBJECT', properties: { name: { type: 'STRING' }, brand: { type: 'STRING' }, kcal: { type: 'NUMBER' }, prot: { type: 'NUMBER' }, carb: { type: 'NUMBER' }, fat: { type: 'NUMBER' }, sugar: { type: 'NUMBER' }, fiber: { type: 'NUMBER' }, salt: { type: 'NUMBER' }, serving_grams: { type: 'NUMBER' }, barcode: { type: 'STRING' } }, required: ['name', 'kcal', 'prot', 'carb', 'fat'] } },
+  { name: 'update_goals', description: 'Change l\'objectif de l\'utilisateur : but (perdre/maintenir/prendre), rythme, poids visé, ou directement les calories / macros du jour. L\'appli recalcule le reste.', parameters: { type: 'OBJECT', properties: { goal: { type: 'STRING', enum: ['lose', 'maintain', 'gain'] }, pace: { type: 'STRING', enum: ['slow', 'fast'], description: 'slow = tranquille, fast = soutenu' }, target_weight: { type: 'NUMBER', description: 'kg' }, kcal: { type: 'NUMBER', description: 'calories/jour, seulement s\'il demande un chiffre précis ou si le rythme soutenu ne suffit pas' }, prot: { type: 'NUMBER' }, carb: { type: 'NUMBER' }, fat: { type: 'NUMBER' }, reason: { type: 'STRING', description: 'phrase courte qui explique le changement' } } } },
   { name: 'create_recipe', description: 'Crée une recette enregistrée', parameters: { type: 'OBJECT', properties: { name: { type: 'STRING' }, portions: { type: 'NUMBER' }, ingredients: ITEMS, preparation: { type: 'STRING', description: 'étapes de préparation' } }, required: ['name', 'portions', 'ingredients'] } },
 ] }];
 
