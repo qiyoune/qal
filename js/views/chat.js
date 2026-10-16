@@ -2,12 +2,14 @@
 import { esc, icons, $ } from '../ui.js';
 import { loadChat, saveChat, clearChat, ask, isOnline } from '../ai.js';
 import { getState } from '../store.js';
+import { resolveCalls, proposalHtml, applyProposal, canApply, proposalSummary } from '../aiactions.js';
+import { toast } from '../ui.js';
 
 const SUGGESTIONS = [
+  'J\'ai mangé 200 g de riz et un blanc de poulet ce midi',
   'Qu\'est-ce que je mange ce soir ?',
   'Il me manque combien de protéines ?',
-  'Analyse ma journée',
-  'Une collation rapide sous 200 kcal ?',
+  'Crée-moi une recette de bowl protéiné pour 2',
 ];
 
 let busy = false;
@@ -46,7 +48,21 @@ export function renderChat(root, ui, nav) {
       list.querySelectorAll('[data-s]').forEach((b) => (b.onclick = () => send(b.dataset.s)));
       return;
     }
-    list.innerHTML = msgs.map((m) => `<div class="msg ${m.role}${m.error ? ' error' : ''}">${esc(m.text).replace(/\n/g, '<br>')}</div>`).join('')
+    setTimeout(() => list.querySelectorAll('[data-act]').forEach((b) => (b.onclick = () => {
+      const [mi, ai, what] = b.dataset.act.split(':');
+      const a = msgs[+mi]?.actions?.[+ai];
+      if (!a || a.status !== 'pending') return;
+      if (what === 'ok') { a.done = applyProposal(a.p); a.status = 'done'; toast(a.done); }
+      else a.status = 'cancelled';
+      saveChat(msgs); draw();
+    })), 0);
+    list.innerHTML = msgs.map((m, mi) => `${m.text ? `<div class="msg ${m.role}${m.error ? ' error' : ''}">${esc(m.text).replace(/\n/g, '<br>')}</div>` : ''}${(m.actions || []).map((a, ai) => `
+      <div class="action-card ${a.status}">
+        ${proposalHtml(a.p)}
+        ${a.status === 'pending'
+          ? `<div class="ac-btns"><button class="btn btn-ghost btn-sm" data-act="${mi}:${ai}:no">annuler</button><button class="btn btn-primary btn-sm" data-act="${mi}:${ai}:ok" ${canApply(a.p) ? '' : 'disabled'}>valider</button></div>`
+          : `<div class="ac-status">${a.status === 'done' ? '✓ ' + esc(a.done || 'fait') : 'annulé'}</div>`}
+      </div>`).join('')}`).join('')
       + (busy ? '<div class="msg assistant typing"><i>✦</i><i>✦</i><i>✦</i></div>' : '');
     requestAnimationFrame(() => list.lastElementChild?.scrollIntoView({ block: 'end', behavior: 'smooth' }));
   };
@@ -58,8 +74,14 @@ export function renderChat(root, ui, nav) {
     input.value = ''; grow();
     busy = true; draw(); saveChat(msgs);
     try {
-      const reply = await ask(msgs.filter((m) => !m.error));
-      msgs.push({ role: 'assistant', text: reply, at: Date.now() });
+      const history = msgs.filter((m) => !m.error).map((m) => ({
+        role: m.role,
+        text: [m.text, ...(m.actions || []).map((a) => proposalSummary(a.p, a.status))].filter(Boolean).join(' ') || '…',
+      }));
+      const reply = await ask(history);
+      const proposals = reply.calls?.length ? await resolveCalls(reply.calls) : [];
+      const text = reply.text || (proposals.length ? 'Voilà ce que je propose, valide si c\'est bon :' : '…');
+      msgs.push({ role: 'assistant', text, actions: proposals.map((p) => ({ p, status: 'pending' })), at: Date.now() });
     } catch (e) {
       const text = e.badKey ? 'Ta clé Gemini est refusée. Vérifie-la dans Profil → IA.'
         : e.quota ? 'Limite gratuite de Gemini atteinte pour le moment. Réessaie dans une minute (ou demain si c\'est la limite du jour).'

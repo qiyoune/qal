@@ -555,3 +555,39 @@ html:root[data-theme="dark"] { --chat-bg: #2E2622; }
 body.page-chat { --bg: var(--chat-bg); --surface: #FBF8F5; }
 html:root[data-theme="dark"] body.page-chat { --surface: #3A302B; }
 .micro-summary { font-size: 14px; color: var(--text-body); margin: 14px 4px 0; line-height: 1.5; }
+
+/* ---------- Recette : bloc "1 portion" ---------- */
+.portion-card { padding: 18px 20px; }
+.portion-head { display: flex; justify-content: space-between; align-items: baseline; }
+.portion-title { font-family: var(--font-head); font-size: 22px; letter-spacing: -0.02em; }
+.portion-weight { font-weight: 700; color: var(--text-2); font-size: 14px; }
+.portion-kcal { margin-top: 6px; font-size: 15px; color: var(--text-2); font-weight: 600; }
+.portion-kcal b { font-family: var(--font-num); font-weight: 800; font-size: 44px; letter-spacing: -0.04em; color: var(--accent); margin-right: 4px; }
+.portion-macros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+.portion-macros div { background: var(--bg-alt); border-radius: 12px; padding: 8px 10px; }
+.portion-macros b { display: block; font-size: 16px; font-weight: 800; }
+.portion-macros span { font-size: 11px; color: var(--text-2); font-weight: 600; }
+.portion-split { display: flex; align-items: center; gap: 10px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 14px; font-weight: 600; color: var(--text-body); }
+.mini-step { display: flex; align-items: center; gap: 4px; background: var(--bg-alt); border-radius: 999px; padding: 3px; }
+.mini-step button { width: 32px; height: 32px; border-radius: 50%; background: var(--surface); font-size: 18px; font-weight: 700; }
+.mini-step b { min-width: 26px; text-align: center; font-size: 16px; color: var(--ink); }
+.prep-block { margin-top: 14px; background: var(--surface); border-radius: 16px; padding: 14px 16px; }
+.prep-block p { margin: 0; font-size: 14px; line-height: 1.55; color: var(--text-body); }
+
+/* ---------- Cartes d'action de l'IA ---------- */
+.action-card { align-self: flex-start; width: min(100%, 340px); background: var(--surface); border: 1.5px solid var(--accent-border); border-radius: 20px; padding: 14px 16px; box-shadow: var(--shadow-sm); animation: msg-in .35s var(--ease); }
+.action-card.done { border-color: color-mix(in srgb, var(--success) 45%, transparent); }
+.action-card.cancelled { opacity: .55; border-color: var(--border-md); }
+.ac-title { font-weight: 800; font-size: 14px; margin-bottom: 6px; }
+.action-card ul { list-style: none; margin: 0; padding: 0; }
+.action-card li { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 6px 0; border-top: 1px solid var(--border); }
+.action-card li:first-child { border-top: 0; }
+.action-card li b { white-space: nowrap; font-weight: 700; }
+.action-card li.missing { color: var(--text-2); }
+.action-card li.missing b { color: var(--accent); font-weight: 600; }
+.ac-total { margin-top: 6px; font-size: 13px; font-weight: 800; color: var(--accent); }
+.ac-prep { margin: 8px 0 0; font-size: 13px; color: var(--text-body); line-height: 1.5; max-height: 140px; overflow: auto; }
+.ac-btns { display: flex; gap: 8px; margin-top: 12px; }
+.ac-btns .btn { flex: 1; }
+.ac-status { margin-top: 10px; font-size: 13px; font-weight: 700; color: var(--success); }
+.action-card.cancelled .ac-status { color: var(--text-2); }

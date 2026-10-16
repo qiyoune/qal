@@ -30,6 +30,8 @@ export function buildContext(date = dateStr()) {
   const entries = entriesFor(date);
   const { t } = totals(entries);
   const lines = [];
+  const now = new Date();
+  lines.push(`Nous sommes le ${date}, il est ${now.getHours()}h${String(now.getMinutes()).padStart(2, '0')}.`);
   lines.push(`Profil : ${p.name || 'utilisateur'}, ${p.sex === 'f' ? 'femme' : 'homme'}, ${p.age} ans, ${p.height} cm, ${p.weight} kg.`);
   lines.push(`Objectif : ${{ lose: 'perdre du gras', maintain: 'maintenir son poids', gain: 'prendre du muscle' }[p.goal] || '?'}. Appétit : ${p.appetite || '?'}.`);
   if (p.dayText) lines.push(`Sa journée type (écrit par lui) : « ${p.dayText} »`);
@@ -38,7 +40,7 @@ export function buildContext(date = dateStr()) {
   lines.push(`Mangé aujourd'hui (${date}) : ${fmt(t.kcal)} kcal, P ${fmt(t.prot)} g, G ${fmt(t.carb)} g, L ${fmt(t.fat)} g, fibres ${fmt(t.fiber)} g.`);
   for (const m of MEALS) {
     const items = entries.filter((e) => e.meal === m.id);
-    if (items.length) lines.push(`- ${m.label} : ${items.map((e) => `${e.name} ${fmt(e.grams)} g (${fmt(scale(e.per100, e.grams).kcal)} kcal)`).join(', ')}`);
+    if (items.length) lines.push(`- ${m.label} (meal=${m.id}) : ${items.map((e) => `[id=${e.id}] ${e.name} ${fmt(e.grams)} g (${fmt(scale(e.per100, e.grams).kcal)} kcal)`).join(', ')}`);
   }
   return lines.join('\n');
 }
@@ -57,9 +59,24 @@ const SYSTEM = `Tu es l'assistant nutrition de l'appli qal ✦. Tu parles franç
 Tu t'appuies sur le profil et la journée de l'utilisateur fournis ci-dessous (ses réponses écrites sont précieuses : utilise-les).
 Réponses courtes (3 à 6 phrases), avec des quantités précises en grammes quand tu proposes à manger. Pas de markdown.
 Tu n'inventes pas ce qu'il a mangé : tu utilises le contexte.
-Tu n'es pas médecin : en cas de question médicale ou de trouble alimentaire, oriente vers un professionnel.`;
+Tu n'es pas médecin : en cas de question médicale ou de trouble alimentaire, oriente vers un professionnel.
+
+Tu peux agir sur l'appli avec tes outils : ajouter des aliments au journal (add_foods), modifier ou supprimer une entrée existante (update_entry, delete_entry, avec son id du contexte), créer une recette (create_recipe).
+- Utilise-les quand l'utilisateur dit ce qu'il a mangé ou demande de modifier son journal ou de créer une recette. Il validera lui-même avant que ce soit appliqué.
+- Pour chaque aliment, donne un nom générique en français façon table Ciqual, aliment principal en premier puis précisions (ex : "riz basmati cuit", "poulet poitrine cuit", "pomme crue", "huile olive", "pates alimentaires cuites"), et une quantité en grammes réaliste (1 oeuf ≈ 55 g, 1 c. à soupe d'huile ≈ 10 g). N'invente jamais les calories : l'appli les calcule.
+- Choisis le repas (breakfast, lunch, snack, dinner) selon ce qu'il dit, sinon selon l'heure.
+- Accompagne toujours l'action d'une phrase courte.`;
 
 const GAPI = 'https://generativelanguage.googleapis.com/v1beta';
+
+const ITEMS = { type: 'ARRAY', items: { type: 'OBJECT', properties: { name: { type: 'STRING', description: 'nom générique de l\'aliment' }, grams: { type: 'NUMBER' } }, required: ['name', 'grams'] } };
+const MEAL = { type: 'STRING', enum: ['breakfast', 'lunch', 'snack', 'dinner'] };
+const TOOLS = [{ functionDeclarations: [
+  { name: 'add_foods', description: 'Ajoute des aliments au journal', parameters: { type: 'OBJECT', properties: { meal: MEAL, date: { type: 'STRING', description: 'YYYY-MM-DD, aujourd\'hui par défaut' }, items: ITEMS }, required: ['meal', 'items'] } },
+  { name: 'update_entry', description: 'Modifie la quantité ou le repas d\'une entrée du journal', parameters: { type: 'OBJECT', properties: { id: { type: 'STRING' }, grams: { type: 'NUMBER' }, meal: MEAL }, required: ['id'] } },
+  { name: 'delete_entry', description: 'Supprime une entrée du journal', parameters: { type: 'OBJECT', properties: { id: { type: 'STRING' } }, required: ['id'] } },
+  { name: 'create_recipe', description: 'Crée une recette enregistrée', parameters: { type: 'OBJECT', properties: { name: { type: 'STRING' }, portions: { type: 'NUMBER' }, ingredients: ITEMS, preparation: { type: 'STRING', description: 'étapes de préparation' } }, required: ['name', 'portions', 'ingredients'] } },
+] }];
 
 // Les noms de modèles changent : on essaie dans l'ordre, et on retient celui qui marche
 const CANDIDATES = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-flash-lite-latest'];
@@ -101,7 +118,8 @@ async function askGemini(key, history, context) {
   const body = JSON.stringify({
     systemInstruction: { parts: [{ text: `${SYSTEM}\n\n--- Contexte utilisateur ---\n${context}` }] },
     contents: history.slice(-12).map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.text }] })),
-    generationConfig: { temperature: 0.7, maxOutputTokens: 800 },
+    tools: TOOLS,
+    generationConfig: { temperature: 0.6, maxOutputTokens: 1200 },
   });
   let saved = null;
   try { saved = localStorage.getItem(GMODEL); } catch {}
@@ -118,8 +136,10 @@ async function askGemini(key, history, context) {
     if (r.ok) {
       try { localStorage.setItem(GMODEL, model); } catch {}
       const d = await r.json();
-      const text = (d.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join('').trim();
-      return text.replace(/\*\*(.+?)\*\*/g, '$1') || '…';
+      const parts = d.candidates?.[0]?.content?.parts || [];
+      const text = parts.map((p) => p.text || '').join('').trim().replace(/\*\*(.+?)\*\*/g, '$1');
+      const calls = parts.filter((p) => p.functionCall).map((p) => ({ name: p.functionCall.name, args: p.functionCall.args || {} }));
+      return { text: text || (calls.length ? '' : '…'), calls };
     }
     lastErr = await googleError(r);
     if (lastErr.badKey || lastErr.quota) throw lastErr;
@@ -140,7 +160,7 @@ export async function ask(history) {
   const context = buildContext();
   const key = getGeminiKey();
   if (key) return askGemini(key, history, context);
-  if (!AI_ENDPOINT) return offlineReply();
+  if (!AI_ENDPOINT) return { text: offlineReply(), calls: [] };
   const r = await fetch(AI_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -148,7 +168,7 @@ export async function ask(history) {
   });
   if (!r.ok) throw new Error('ia ' + r.status);
   const d = await r.json();
-  return d.reply || '…';
+  return { text: d.reply || '…', calls: [] };
 }
 
 // Sans IA branchée : un résumé utile de la journée

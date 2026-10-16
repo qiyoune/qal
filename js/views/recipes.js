@@ -30,7 +30,7 @@ export function renderRecipes(root, ui, nav) {
         <button class="btn btn-primary" id="r-new2">créer ma première recette</button>
       </div>`}
   `;
-  const create = () => { ui.recipeDraft = { name: '', portions: 2, ingredients: [] }; nav.go('#/recipe'); };
+  const create = () => { ui.recipeDraft = { name: '', portions: 1, ingredients: [], preparation: '' }; nav.go('#/recipe'); };
   $('#r-new', root).onclick = create;
   $('#r-new2', root)?.addEventListener('click', create);
   root.querySelectorAll('[data-id]').forEach((b) => (b.onclick = () => openRecipe(b.dataset.id, ui, nav)));
@@ -42,11 +42,12 @@ function openRecipe(id, ui, nav) {
   if (!r) return;
   const food = recipeAsFood(r);
   openFoodSheet({
-    food: { ...food, quantity: `${r.portions} portion${r.portions > 1 ? 's' : ''} · ${fmt(food.totalGrams)} g au total` },
+    food: { ...food, quantity: `1 portion = ${fmt(food.serving.grams)} g${r.portions > 1 ? ` · la recette en fait ${r.portions}` : ''}` },
     grams: food.serving.grams,
     meal: ui.date === dateStr() ? mealForNow() : 'lunch',
     date: ui.date,
     onDone: () => { ui.justAdded = true; nav.go('#/'); },
+    extraHtml: r.preparation ? `<div class="prep-block"><div class="about-label" style="margin-top:0">Préparation</div><p>${esc(r.preparation).replace(/\n/g, '<br>')}</p></div>` : '',
     extra: [
       { label: 'modifier la recette', cls: 'btn-ghost', onClick: () => { ui.recipeDraft = JSON.parse(JSON.stringify(r)); nav.go('#/recipe'); } },
       { label: 'supprimer', cls: 'btn-danger', onClick: () => { if (confirm(`Supprimer « ${r.name} » ?`)) { deleteRecipe(id); toast('recette supprimée'); nav.render(); } } },
@@ -56,30 +57,48 @@ function openRecipe(id, ui, nav) {
 
 /* ---------- Éditeur ---------- */
 export function renderRecipeEditor(root, ui, nav) {
-  const d = ui.recipeDraft || (ui.recipeDraft = { name: '', portions: 2, ingredients: [] });
+  const d = ui.recipeDraft || (ui.recipeDraft = { name: '', portions: 1, ingredients: [], preparation: '' });
   const draw = () => {
-    const food = recipeAsFood({ ...d, ingredients: d.ingredients.length ? d.ingredients : [{ grams: 0, per100: {} }] });
-    const tot = scale(food.per100, food.totalGrams);
+    const has = d.ingredients.length > 0;
+    const food = recipeAsFood({ ...d, ingredients: has ? d.ingredients : [{ grams: 0, per100: {} }] });
     const per = scale(food.per100, food.serving.grams);
+    const tot = scale(food.per100, food.totalGrams);
+    const n = Math.max(1, +d.portions || 1);
     root.innerHTML = `
       <header class="topbar">
         <button class="icon-btn" id="e-back" aria-label="Retour">${icons.back}</button>
         <div class="head" style="font-size:24px">${d.id ? 'modifier' : 'nouvelle recette'}</div>
         <span style="width:42px"></span>
       </header>
-      <div class="stack section">
-        <div class="field"><label>Nom de la recette</label><input class="input" id="e-name" value="${esc(d.name)}" placeholder="ex : bowl poulet riz brocolis" maxlength="60" /></div>
-        <div class="field"><label>Nombre de portions</label>
-          <div class="row" style="align-items:center">
-            <button class="step" style="height:52px;flex:none" data-p="-1">−</button>
-            <input class="input" id="e-portions" inputmode="numeric" value="${d.portions}" style="text-align:center;font-weight:800;font-size:20px" />
-            <button class="step" style="height:52px;flex:none" data-p="1">+</button>
-          </div>
+
+      <div class="field section"><label>Nom de la recette</label><input class="input" id="e-name" value="${esc(d.name)}" placeholder="ex : bowl poulet riz brocolis" maxlength="60" /></div>
+
+      <div class="card section portion-card">
+        <div class="portion-head">
+          <span class="portion-title">1 portion</span>
+          <span class="portion-weight">${has ? fmt(food.serving.grams) + ' g' : '–'}</span>
         </div>
+        <div class="portion-kcal"><b>${has ? fmt(per.kcal) : '0'}</b> kcal</div>
+        <div class="portion-macros">
+          <div><b>${has ? fmt(per.prot) : 0} g</b><span>protéines</span></div>
+          <div><b>${has ? fmt(per.carb) : 0} g</b><span>glucides</span></div>
+          <div><b>${has ? fmt(per.fat) : 0} g</b><span>lipides</span></div>
+        </div>
+        <div class="portion-split">
+          <span>La recette donne</span>
+          <div class="mini-step">
+            <button data-p="-1" aria-label="Une portion de moins">−</button>
+            <b>${n}</b>
+            <button data-p="1" aria-label="Une portion de plus">+</button>
+          </div>
+          <span>portion${n > 1 ? 's' : ''}</span>
+        </div>
+        ${has && n > 1 ? `<p class="small muted" style="margin:8px 0 0">Recette entière : ${fmt(food.totalGrams)} g · ${fmt(tot.kcal)} kcal</p>` : ''}
       </div>
-      <div class="list-title section"><span>ingrédients</span><span>${fmt(food.totalGrams && d.ingredients.length ? food.totalGrams : 0)} g</span></div>
+
+      <div class="list-title section"><span>ingrédients</span><span>${has ? fmt(food.totalGrams) + ' g' : ''}</span></div>
       <div class="card" style="padding:4px 16px">
-        ${d.ingredients.length ? d.ingredients.map((i, idx) => `
+        ${has ? d.ingredients.map((i, idx) => `
           <div class="item">
             <span class="grow"><div class="t">${esc(i.name)}</div><div class="s">${fmt(i.grams)} g · ${fmt(scale(i.per100, i.grams).kcal)} kcal</div></span>
             <button class="icon-btn" data-del="${idx}" aria-label="Retirer" style="width:34px;height:34px">${icons.close}</button>
@@ -87,26 +106,24 @@ export function renderRecipeEditor(root, ui, nav) {
       </div>
       <button class="btn btn-outline section" id="e-add">${icons.plus.replace('<svg', '<svg width="18" height="18"')} ajouter un ingrédient</button>
 
-      ${d.ingredients.length ? `
-        <div class="card section">
-          <div class="kv"><span>une portion</span><span>${fmt(food.serving.grams)} g · ${fmt(per.kcal)} kcal</span></div>
-          <div class="kv"><span>protéines / glucides / lipides</span><span>${fmt(per.prot)} / ${fmt(per.carb)} / ${fmt(per.fat)} g</span></div>
-          <div class="kv"><span>recette entière</span><span>${fmt(tot.kcal)} kcal</span></div>
-        </div>` : ''}
-      <button class="btn btn-primary section" id="e-save" ${d.name.trim() && d.ingredients.length ? '' : 'disabled'}>enregistrer la recette</button>
+      <div class="about-label section">Préparation</div>
+      <div class="long-input compact"><textarea id="e-prep" maxlength="3000" rows="6" placeholder="Les étapes : cuire le riz 10 min, griller le poulet, ajouter les brocolis vapeur…">${esc(d.preparation || '')}</textarea><span class="count" id="e-prep-count">${(d.preparation || '').length} / 3000</span></div>
+
+      <button class="btn btn-primary section" id="e-save" ${d.name.trim() && has ? '' : 'disabled'}>enregistrer la recette</button>
     `;
-    const nameIn = $('#e-name', root), pIn = $('#e-portions', root), save = $('#e-save', root);
+    const nameIn = $('#e-name', root), save = $('#e-save', root), prep = $('#e-prep', root);
     const canSave = () => { save.disabled = !(d.name.trim() && d.ingredients.length); };
     nameIn.addEventListener('input', () => { d.name = nameIn.value; canSave(); });
-    pIn.addEventListener('change', () => { d.portions = Math.max(1, Math.round(num(pIn.value) || 1)); draw(); });
-    root.querySelectorAll('[data-p]').forEach((b) => (b.onclick = () => { d.portions = Math.max(1, (+d.portions || 1) + +b.dataset.p); draw(); }));
+    prep.addEventListener('input', () => { d.preparation = prep.value; $('#e-prep-count', root).textContent = `${prep.value.length} / 3000`; });
+    root.querySelectorAll('[data-p]').forEach((b) => (b.onclick = () => { d.portions = Math.max(1, Math.min(50, n + +b.dataset.p)); draw(); }));
     root.querySelectorAll('[data-del]').forEach((b) => (b.onclick = () => { d.ingredients.splice(+b.dataset.del, 1); draw(); }));
     $('#e-add', root).onclick = () => openIngredientPicker({ onPick: (ing) => { d.ingredients.push(ing); draw(); } });
     $('#e-back', root).onclick = () => nav.go('#/recipes');
     save.onclick = () => {
       d.name = nameIn.value.trim();
+      d.preparation = prep.value.trim();
       if (!d.name || !d.ingredients.length) return;
-      saveRecipe({ ...d, portions: Math.max(1, +d.portions || 1) });
+      saveRecipe({ ...d, portions: n });
       ui.recipeDraft = null;
       toast('recette enregistrée ✦');
       nav.go('#/recipes');

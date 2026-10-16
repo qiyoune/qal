@@ -174,7 +174,7 @@ export function recipeAsFood(r) {
     per100[k] = known ? (sum * 100) / totalG : null;
   }
   const portions = Math.max(1, +r.portions || 1);
-  return { name: r.name, brand: 'recette', per100, source: 'recette', recipeId: r.id, serving: { grams: Math.round(totalG / portions), label: 'portion' }, totalGrams: totalG };
+  return { name: r.name, brand: '', per100, source: 'recette', recipeId: r.id, serving: { grams: Math.round(totalG / portions), label: 'portion' }, totalGrams: totalG };
 }
 
 /* ---------- Sync helpers ---------- */
