@@ -1,6 +1,6 @@
 // Service worker : l'appli s'ouvre même sans réseau.
 // Change VERSION à chaque mise à jour pour forcer le rafraîchissement.
-const VERSION = 'qal-v19';
+const VERSION = 'qal-v20';
 const SHELL = [
   './', 'index.html', 'css/style.css', 'manifest.webmanifest',
   'js/app.js', 'js/ui.js', 'js/store.js', 'js/nutrition.js', 'js/foods.js', 'js/scanner.js', 'js/sheets.js', 'js/drive.js', 'js/config.js', 'js/fx.js', 'js/ai.js', 'js/picker.js', 'js/aiactions.js',
@@ -25,8 +25,9 @@ self.addEventListener('fetch', (e) => {
   const sameOrigin = url.origin === self.location.origin;
   const isFont = url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
   if (!sameOrigin && !isFont) return;
+  // no-cache : on revalide toujours auprès du serveur, pour ne jamais garder une vieille version
   e.respondWith(
-    fetch(e.request)
+    fetch(e.request, sameOrigin ? { cache: 'no-cache' } : undefined)
       .then((res) => {
         if (res.ok) { const copy = res.clone(); caches.open(VERSION).then((c) => c.put(e.request, copy)); }
         return res;
