@@ -3,7 +3,7 @@ import { esc, icons, toast, $ } from '../ui.js';
 import { getState, exportData, importData, resetAll } from '../store.js';
 import * as drive from '../drive.js';
 import { getThemePref, setThemePref } from '../fx.js';
-import { getGeminiKey, setGeminiKey, testGeminiKey } from '../ai.js';
+import { PROVIDERS, getKey, setKey, testKey, getProvider, setProvider } from '../ai.js';
 
 export function renderSettings(root, ui, nav) {
   const st = getState();
@@ -31,19 +31,7 @@ export function renderSettings(root, ui, nav) {
     </div>
 
     <div class="section center" style="margin-top:26px"><span class="pill-label">✦ ia ✦</span></div>
-    <div class="card section">
-      <div class="sync-status"><span class="dot ${getGeminiKey() ? 'ok' : ''}"></span><span>${getGeminiKey() ? 'Clé Gemini enregistrée : le chat IA est actif.' : 'Ajoute ta clé Gemini gratuite pour activer le chat IA.'}</span></div>
-      <div class="field" style="margin-top:14px">
-        <label for="g-key">Clé API Gemini</label>
-        <input class="input" id="g-key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${getGeminiKey() ? '•••••••• (enregistrée)' : 'colle ta clé ici'}" />
-      </div>
-      <div class="row" style="margin-top:10px">
-        ${getGeminiKey() ? '<button class="btn btn-ghost btn-sm" id="g-del">retirer</button>' : ''}
-        <button class="btn btn-primary btn-sm" id="g-save-key">enregistrer</button>
-      </div>
-      <p class="small" id="g-err" style="margin:10px 4px 0;color:var(--accent)"></p>
-      <p class="small muted" style="margin:12px 4px 0">Gratuit : crée ta clé sur <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> (bouton « Create API key »), puis colle-la ici. Elle reste uniquement sur ce téléphone. Avec l'offre gratuite, Google peut utiliser les conversations pour améliorer ses modèles.</p>
-    </div>
+    <div class="card section" id="ai-card"></div>
 
     <div class="section center" style="margin-top:26px"><span class="pill-label">✦ synchro ✦</span></div>
     <div class="card section">
@@ -71,25 +59,56 @@ export function renderSettings(root, ui, nav) {
 
   $('#o-back', root).onclick = () => (history.length > 1 ? history.back() : nav.go('#/'));
 
-  // Clé Gemini
-  $('#g-save-key', root).onclick = async () => {
-    const k = $('#g-key', root).value.trim();
-    if (!k) return toast(getGeminiKey() ? 'clé déjà enregistrée' : 'colle ta clé d\'abord');
-    const btn = $('#g-save-key', root);
-    btn.disabled = true; btn.textContent = 'test…';
-    try {
-      await testGeminiKey(k);
-      setGeminiKey(k);
-      toast('clé validée, l\'ia est active ✦');
-      renderProfile(root, ui, nav);
-    } catch (e) {
-      btn.disabled = false; btn.textContent = 'enregistrer';
-      const why = e.detail ? ` (${e.detail.slice(0, 90)})` : '';
-      toast(e.badKey ? 'clé refusée par Google' + why : e.quota ? 'limite gratuite atteinte, réessaie plus tard' : 'test impossible' + (why || ' (connexion ?)'));
-      const p = $('#g-err', root); if (p) p.textContent = e.detail ? 'Réponse de Google : ' + e.detail : (e.message || '');
-    }
+  // IA : choix du fournisseur + sa clé
+  let tab = ui.aiTab && PROVIDERS[ui.aiTab] ? ui.aiTab : getProvider();
+  const drawAi = () => {
+    const card = $('#ai-card', root);
+    const P = PROVIDERS[tab];
+    const has = !!getKey(tab);
+    const active = getProvider();
+    card.innerHTML = `
+      <div class="segmented" id="ai-seg" role="radiogroup" aria-label="Fournisseur IA">
+        ${Object.entries(PROVIDERS).map(([id, x]) => `<button role="radio" aria-checked="${id === tab}" class="${id === tab ? 'on' : ''}" data-prov="${id}">${x.label}${getKey(id) ? ' ✓' : ''}</button>`).join('')}
+      </div>
+      <div class="sync-status" style="margin-top:14px"><span class="dot ${has && active === tab ? 'ok' : ''}"></span><span>${
+        has ? (active === tab ? `${P.label} est l'IA utilisée par le chat.` : `Clé ${P.label} enregistrée, mais pas utilisée.`)
+          : `Ajoute ta clé ${P.label} pour l'utiliser dans le chat.`}</span></div>
+      <div class="field" style="margin-top:14px">
+        <label for="g-key">Clé API ${P.label}</label>
+        <input class="input" id="g-key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${has ? '•••••••• (enregistrée)' : 'colle ta clé ici'}" />
+      </div>
+      <div class="row" style="margin-top:10px;flex-wrap:wrap">
+        ${has ? '<button class="btn btn-ghost btn-sm" id="g-del">retirer</button>' : ''}
+        ${has && active !== tab ? '<button class="btn btn-outline btn-sm" id="g-use">utiliser celle-ci</button>' : ''}
+        <button class="btn btn-primary btn-sm" id="g-save-key">enregistrer</button>
+      </div>
+      <p class="small" id="g-err" style="margin:10px 4px 0;color:var(--accent)"></p>
+      <p class="small muted" style="margin:12px 4px 0">${P.free
+        ? `Gratuit : crée ta clé sur <a href="${P.help}" target="_blank" rel="noopener">${P.helpTxt}</a> (bouton « Create API key »), puis colle-la ici. Avec l'offre gratuite, Google peut utiliser les conversations pour améliorer ses modèles.`
+        : `Payant à l'usage (quelques centimes par jour en usage normal) : crée ta clé sur <a href="${P.help}" target="_blank" rel="noopener">${P.helpTxt}</a> et ajoute un peu de crédit sur ton compte ${P.who}.`} La clé reste uniquement sur cet appareil.</p>`;
+
+    card.querySelectorAll('[data-prov]').forEach((b) => (b.onclick = () => { tab = ui.aiTab = b.dataset.prov; drawAi(); }));
+    $('#g-use', card)?.addEventListener('click', () => { setProvider(tab); toast(`${P.label} activé ✦`); drawAi(); });
+    $('#g-del', card)?.addEventListener('click', () => { setKey(tab, ''); toast('clé retirée'); drawAi(); });
+    $('#g-save-key', card).onclick = async () => {
+      const k = $('#g-key', card).value.trim();
+      if (!k) return toast(has ? 'clé déjà enregistrée' : 'colle ta clé d\'abord');
+      const btn = $('#g-save-key', card);
+      btn.disabled = true; btn.textContent = 'test…';
+      try {
+        await testKey(tab, k);
+        setKey(tab, k);
+        toast(`clé validée, ${P.label} est actif ✦`);
+        drawAi();
+      } catch (e) {
+        btn.disabled = false; btn.textContent = 'enregistrer';
+        const why = e.detail ? ` (${e.detail.slice(0, 90)})` : '';
+        toast(e.badKey ? `clé refusée par ${P.who}` + why : e.quota ? (P.free ? 'limite gratuite atteinte, réessaie plus tard' : 'plus de crédit ou limite atteinte') : 'test impossible' + (why || ' (connexion ?)'));
+        const p = $('#g-err', card); if (p) p.textContent = e.detail ? `Réponse de ${P.who} : ${e.detail}` : (e.message || '');
+      }
+    };
   };
-  $('#g-del', root)?.addEventListener('click', () => { setGeminiKey(''); toast('clé retirée'); renderProfile(root, ui, nav); });
+  drawAi();
 
   root.querySelectorAll('[data-theme]').forEach((b) => (b.onclick = () => {
     setThemePref(b.dataset.theme);

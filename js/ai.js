@@ -1,5 +1,5 @@
-// Chat IA : construit le contexte de l'utilisateur et l'envoie au proxy IA.
-// La clé API ne doit JAMAIS être dans l'appli : elle reste dans le proxy (serveur).
+// Chat IA : construit le contexte de l'utilisateur et l'envoie à l'IA choisie (Gemini, Claude ou ChatGPT).
+// La clé de chaque personne reste sur son appareil (localStorage) et part directement chez le fournisseur.
 import { AI_ENDPOINT } from './config.js';
 import { getState, entriesFor, MEALS, weightsList } from './store.js';
 import { totals, scale, fmt, computeTargets } from './nutrition.js';
@@ -77,11 +77,26 @@ export function buildContext(date = dateStr()) {
 // La clé reste sur CET appareil (localStorage) : elle n'est ni synchronisée ni envoyée ailleurs que chez Google.
 const GKEY = 'qal:gemini-key';
 const GMODEL = 'qal:gemini-model';
-export const getGeminiKey = () => { try { return localStorage.getItem(GKEY) || ''; } catch { return ''; } };
-export function setGeminiKey(k) {
-  k = (k || '').trim().replace(/^['"]|['"]$/g, '');
-  try { k ? localStorage.setItem(GKEY, k) : localStorage.removeItem(GKEY); } catch {}
+const PKEY = 'qal:ai-provider';
+export const PROVIDERS = {
+  gemini: { label: 'Gemini', storage: GKEY, free: true, help: 'https://aistudio.google.com/apikey', helpTxt: 'aistudio.google.com/apikey', who: 'Google' },
+  claude: { label: 'Claude', storage: 'qal:claude-key', free: false, help: 'https://console.anthropic.com/settings/keys', helpTxt: 'console.anthropic.com', who: 'Anthropic' },
+  openai: { label: 'ChatGPT', storage: 'qal:openai-key', free: false, help: 'https://platform.openai.com/api-keys', helpTxt: 'platform.openai.com/api-keys', who: 'OpenAI' },
+};
+const ls = { get: (k) => { try { return localStorage.getItem(k) || ''; } catch { return ''; } }, set: (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch {} } };
+const cleanKey = (k) => (k || '').trim().replace(/^['"]|['"]$/g, '');
+export const getKey = (prov) => ls.get(PROVIDERS[prov]?.storage);
+export function setKey(prov, k) { ls.set(PROVIDERS[prov].storage, cleanKey(k)); if (cleanKey(k)) setProvider(prov); }
+// Fournisseur actif : celui choisi, sinon le premier qui a une clé
+export function getProvider() {
+  const p = ls.get(PKEY);
+  if (PROVIDERS[p] && getKey(p)) return p;
+  return Object.keys(PROVIDERS).find((x) => getKey(x)) || (PROVIDERS[p] ? p : 'gemini');
 }
+export function setProvider(p) { if (PROVIDERS[p]) ls.set(PKEY, p); }
+export const providerLabel = () => PROVIDERS[getProvider()].label;
+export const getGeminiKey = () => getKey('gemini');
+export function setGeminiKey(k) { setKey('gemini', k); }
 
 const SYSTEM = `Tu es l'assistant nutrition de l'appli qal ✦. Tu parles français, tu tutoies, tu es direct, chaleureux et concret.
 Tu t'appuies sur le profil et la journée de l'utilisateur fournis ci-dessous (ses réponses écrites sont précieuses : utilise-les).
@@ -149,7 +164,7 @@ async function googleError(r) {
   try { msg = (await r.json())?.error?.message || ''; } catch {}
   const e = new Error(msg || 'gemini ' + r.status);
   e.status = r.status;
-  e.detail = msg;
+  e.detail = msg; e.who = 'Google';
   if (r.status === 429 || /quota|rate/i.test(msg)) e.quota = true;
   else if (r.status === 401 || r.status === 403 || /api key|API_KEY|permission|unauthenticated/i.test(msg)) e.badKey = true;
   return e;
@@ -215,17 +230,21 @@ export async function generateDishImage(prompt) {
   throw last || new Error('image');
 }
 
-export async function testGeminiKey(key) {
-  const reply = await askGemini(key.trim().replace(/^['"]|['"]$/g, ''), [{ role: 'user', text: 'Réponds juste : ok' }], '');
+const ASKERS = { gemini: (k, h, c) => askGemini(k, h, c), claude: (k, h, c) => askClaude(k, h, c), openai: (k, h, c) => askOpenAI(k, h, c) };
+
+export async function testKey(prov, key) {
+  const reply = await ASKERS[prov](cleanKey(key), [{ role: 'user', text: 'Réponds juste : ok' }], '');
   return !!reply;
 }
+export const testGeminiKey = (key) => testKey('gemini', key);
 
-export const isOnline = () => !!AI_ENDPOINT || !!getGeminiKey();
+export const isOnline = () => !!AI_ENDPOINT || Object.keys(PROVIDERS).some((p) => getKey(p));
 
 export async function ask(history) {
   const context = buildContext();
-  const key = getGeminiKey();
-  if (key) return askGemini(key, history, context);
+  const prov = getProvider();
+  const key = getKey(prov);
+  if (key) return ASKERS[prov](key, history, context);
   if (!AI_ENDPOINT) return { text: offlineReply(), calls: [] };
   const r = await fetch(AI_ENDPOINT, {
     method: 'POST',
@@ -237,6 +256,102 @@ export async function ask(history) {
   return { text: d.reply || '…', calls: [] };
 }
 
+/* ---------- Claude et ChatGPT ---------- */
+// Les outils sont écrits au format Gemini (types en majuscules) : on les traduit en JSON Schema standard
+const toSchema = (x) => {
+  if (Array.isArray(x)) return x.map(toSchema);
+  if (!x || typeof x !== 'object') return x;
+  const o = {};
+  for (const [k, v] of Object.entries(x)) o[k] = k === 'type' && typeof v === 'string' ? v.toLowerCase() : toSchema(v);
+  return o;
+};
+const FUNCS = () => TOOLS[0].functionDeclarations.map((f) => ({ name: f.name, description: f.description, parameters: toSchema(f.parameters || { type: 'OBJECT', properties: {} }) }));
+const tidy = (t) => String(t || '').trim().replace(/\*\*(.+?)\*\*/g, '$1');
+const sysText = (context) => context ? `${SYSTEM}\n\n--- Contexte utilisateur ---\n${context}` : SYSTEM;
+
+async function apiError(r, who) {
+  let msg = '';
+  try { const j = await r.json(); msg = j?.error?.message || j?.message || ''; } catch {}
+  const e = new Error(msg || `${who} ${r.status}`);
+  e.status = r.status; e.detail = msg; e.who = who;
+  if (r.status === 429 || /quota|rate.?limit|insufficient|credit balance|billing/i.test(msg)) e.quota = true;
+  else if (r.status === 401 || r.status === 403 || /api.?key|auth/i.test(msg)) e.badKey = true;
+  return e;
+}
+
+// Essaie une liste de modèles ; si aucun n'existe, demande la liste au fournisseur
+async function tryModels(storeKey, candidates, call, list) {
+  const saved = ls.get(storeKey);
+  const queue = [...(saved ? [saved] : []), ...candidates];
+  const tried = new Set();
+  let last = null, listed = false;
+  while (queue.length) {
+    const m = queue.shift();
+    if (tried.has(m)) continue;
+    tried.add(m);
+    const r = await call(m);
+    if (r.ok) { ls.set(storeKey, m); return r; }
+    last = r;
+    if (r.status === 401 || r.status === 403 || r.status === 429) break;
+    if (!listed && (r.status === 404 || r.status === 400)) { listed = true; try { queue.push(...(await list())); } catch {} }
+  }
+  return last;
+}
+
+// Anthropic accepte les appels depuis le navigateur avec cet en-tête
+const CLAUDE_MODELS = ['claude-haiku-4-5', 'claude-sonnet-4-5', 'claude-3-5-haiku-latest'];
+async function askClaude(key, history, context) {
+  const headers = { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' };
+  // Claude veut des tours user / assistant qui alternent, en commençant par user
+  const messages = [];
+  for (const m of history.slice(-12)) {
+    const role = m.role === 'assistant' ? 'assistant' : 'user';
+    const content = [
+      ...(m.image ? [{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: m.image.split(',')[1] } }] : []),
+      { type: 'text', text: m.text || 'Photo' },
+    ];
+    const prev = messages[messages.length - 1];
+    if (prev && prev.role === role) prev.content.push(...content);
+    else messages.push({ role, content });
+  }
+  while (messages[0]?.role === 'assistant') messages.shift();
+  const tools = FUNCS().map((f) => ({ name: f.name, description: f.description, input_schema: f.parameters }));
+  const r = await tryModels('qal:claude-model', CLAUDE_MODELS,
+    (model) => fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers, body: JSON.stringify({ model, max_tokens: 1200, system: sysText(context), messages, tools }) }),
+    async () => {
+      const l = await fetch('https://api.anthropic.com/v1/models', { headers });
+      const d = await l.json();
+      return (d.data || []).map((x) => x.id).sort((a, b) => /haiku/.test(b) - /haiku/.test(a));
+    });
+  if (!r.ok) throw await apiError(r, 'Anthropic');
+  const d = await r.json();
+  const text = tidy((d.content || []).filter((b) => b.type === 'text').map((b) => b.text).join(''));
+  const calls = (d.content || []).filter((b) => b.type === 'tool_use').map((b) => ({ name: b.name, args: b.input || {} }));
+  return { text: text || (calls.length ? '' : '…'), calls };
+}
+
+const OPENAI_MODELS = ['gpt-4.1-mini', 'gpt-4o-mini', 'gpt-5-mini'];
+async function askOpenAI(key, history, context) {
+  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` };
+  const messages = [{ role: 'system', content: sysText(context) }, ...history.slice(-12).map((m) => m.role === 'assistant'
+    ? { role: 'assistant', content: m.text || '…' }
+    : { role: 'user', content: [{ type: 'text', text: m.text || 'Photo' }, ...(m.image ? [{ type: 'image_url', image_url: { url: m.image } }] : [])] })];
+  const tools = FUNCS().map((f) => ({ type: 'function', function: f }));
+  const r = await tryModels('qal:openai-model', OPENAI_MODELS,
+    (model) => fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers, body: JSON.stringify({ model, messages, tools, max_completion_tokens: 1500 }) }),
+    async () => {
+      const l = await fetch('https://api.openai.com/v1/models', { headers });
+      const d = await l.json();
+      return (d.data || []).map((x) => x.id).filter((id) => /^gpt-/.test(id) && /mini/.test(id) && !/(audio|realtime|search|transcribe|tts)/.test(id));
+    });
+  if (!r.ok) throw await apiError(r, 'OpenAI');
+  const d = await r.json();
+  const msg = d.choices?.[0]?.message || {};
+  const calls = (msg.tool_calls || []).filter((c) => c.function).map((c) => { let args = {}; try { args = JSON.parse(c.function.arguments || '{}'); } catch {} return { name: c.function.name, args }; });
+  const text = tidy(msg.content);
+  return { text: text || (calls.length ? '' : '…'), calls };
+}
+
 // Sans IA branchée : un résumé utile de la journée
 function offlineReply() {
   const st = getState();
@@ -244,5 +359,5 @@ function offlineReply() {
   const { t } = totals(entriesFor(dateStr()));
   const left = Math.round(g.kcal - t.kcal);
   const pLeft = Math.round(g.prot - t.prot);
-  return `L'IA n'est pas encore branchée : ajoute ta clé Gemini gratuite dans Options → IA ✦ En attendant, voilà ta journée : ${left >= 0 ? `il te reste ${fmt(left)} kcal` : `tu es ${fmt(-left)} kcal au-dessus`}, et ${pLeft > 0 ? `${fmt(pLeft)} g de protéines à aller chercher` : 'ton objectif de protéines est atteint'}.`;
+  return `L'IA n'est pas encore branchée : ajoute une clé IA (Gemini est gratuit) dans Options → IA ✦ En attendant, voilà ta journée : ${left >= 0 ? `il te reste ${fmt(left)} kcal` : `tu es ${fmt(-left)} kcal au-dessus`}, et ${pLeft > 0 ? `${fmt(pLeft)} g de protéines à aller chercher` : 'ton objectif de protéines est atteint'}.`;
 }

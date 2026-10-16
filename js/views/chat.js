@@ -1,6 +1,6 @@
 // Chat avec l'IA
 import { esc, icons, $ } from '../ui.js';
-import { loadChat, saveChat, clearChat, ask, isOnline, generateDishImage } from '../ai.js';
+import { loadChat, saveChat, clearChat, ask, isOnline, generateDishImage, providerLabel } from '../ai.js';
 import { generateDishPhoto } from '../photos.js';
 import { getState } from '../store.js';
 import { resolveCalls, proposalHtml, applyProposal, canApply, proposalSummary } from '../aiactions.js';
@@ -51,7 +51,7 @@ export function renderChat(root, ui, nav) {
           <div class="chat-big">✦</div>
           <h2>${name ? 'salut ' + esc(name.toLowerCase()) : 'salut'}</h2>
           <p class="muted">Je connais ton profil, tes objectifs et ce que tu as mangé aujourd'hui. Demande-moi ce que tu veux.</p>
-          ${isOnline() ? '' : '<p class="small muted">L\'IA n\'est pas encore branchée : ajoute ta clé Gemini gratuite dans <a href="#/settings">Options → IA</a>.</p>'}
+          ${isOnline() ? '' : '<p class="small muted">L\'IA n\'est pas encore branchée : ajoute une clé (Gemini gratuit, Claude ou ChatGPT) dans <a href="#/settings">Options → IA</a>.</p>'}
           <div class="chat-sugg">${SUGGESTIONS.map((s) => `<button class="chip" data-s="${esc(s)}">${esc(s)}</button>`).join('')}</div>
         </div>`;
       list.querySelectorAll('[data-s]').forEach((b) => (b.onclick = () => send(b.dataset.s)));
@@ -114,10 +114,11 @@ export function renderChat(root, ui, nav) {
           .finally(() => { p.photoGen = 'done'; saveChat(msgs); if (document.body.contains(list)) draw(); });
       }
     } catch (e) {
-      const text = e.badKey ? 'Ta clé Gemini est refusée. Vérifie-la dans Options → IA.'
-        : e.quota ? 'Limite gratuite de Gemini atteinte pour le moment. Réessaie dans une minute (ou demain si c\'est la limite du jour).'
+      const L = providerLabel();
+      const text = e.badKey ? `Ta clé ${L} est refusée. Vérifie-la dans Options → IA.`
+        : e.quota ? (L === 'Gemini' ? 'Limite gratuite de Gemini atteinte pour le moment. Réessaie dans une minute (ou demain si c\'est la limite du jour).' : `${L} refuse pour l'instant : limite atteinte ou plus de crédit sur ton compte.`)
         : 'Je n\'arrive pas à joindre l\'IA. Vérifie ta connexion et réessaie.';
-      const detail = e.detail ? `\n(Réponse de Google : ${e.detail})` : e.message && !e.badKey && !e.quota ? `\n(${e.message})` : '';
+      const detail = e.detail ? `\n(Réponse de ${e.who || 'l\'IA'} : ${e.detail})` : e.message && !e.badKey && !e.quota ? `\n(${e.message})` : '';
       msgs.push({ role: 'assistant', text: text + detail, error: true, at: Date.now() });
     }
     busy = false; saveChat(msgs); draw();
