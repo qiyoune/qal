@@ -7,13 +7,20 @@ import { dateStr } from './ui.js';
 
 const KEY = 'qal:chat';
 
+// La conversation est gardée tant que l'appli est ouverte (même en arrière-plan),
+// et repart à zéro quand on ferme complètement l'appli (sessionStorage + mémoire).
+let memChat = null;
+try { localStorage.removeItem(KEY); } catch {} // ancienne version : historique permanent
 export function loadChat() {
-  try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { return []; }
+  if (memChat) return memChat;
+  try { memChat = JSON.parse(sessionStorage.getItem(KEY) || '[]'); } catch { memChat = []; }
+  return memChat;
 }
 export function saveChat(msgs) {
-  try { localStorage.setItem(KEY, JSON.stringify(msgs.slice(-60))); } catch {}
+  memChat = msgs.slice(-60);
+  try { sessionStorage.setItem(KEY, JSON.stringify(memChat)); } catch {}
 }
-export function clearChat() { try { localStorage.removeItem(KEY); } catch {} }
+export function clearChat() { memChat = []; try { sessionStorage.removeItem(KEY); } catch {} }
 
 // Tout ce que l'IA doit savoir sur toi, en texte clair
 export function buildContext(date = dateStr()) {
