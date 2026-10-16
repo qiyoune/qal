@@ -95,21 +95,10 @@ const STEPS = [
     ],
   },
   {
-    key: 'training', kind: 'multi', section: 'activité', skip: () => a.trainFreq === 0,
-    title: () => 'tu fais quoi comme sport ?',
-    sub: 'Plusieurs choix possibles.',
-    options: [
-      { v: 'muscu', em: '🏋️', t: 'Muscu / street workout' },
-      { v: 'cardio', em: '🏃', t: 'Course, cardio, vélo' },
-      { v: 'sportco', em: '⚽', t: 'Sport co ou combat' },
-      { v: 'autre', em: '🧘', t: 'Autre', s: 'natation, danse, escalade…' },
-    ],
-  },
-  {
     key: 'trainText', kind: 'longtext', optional: true, max: 280, section: 'activité',
-    title: () => (a.trainFreq === 0 ? 'tu bouges autrement ?' : 'décris tes séances'),
-    sub: () => (a.trainFreq === 0 ? 'Marche, vélo, escaliers, ménage… tout compte.' : 'Type de séances, durée, intensité, à quel moment de la journée…'),
-    placeholder: () => (a.trainFreq === 0 ? 'ex : je marche 30 min par jour, vélo pour aller au taf' : 'ex : muscu 4x/semaine 1h15 le soir en push/pull/legs, foot le dimanche matin'),
+    title: () => 'décris ton sport, si tu en fais un',
+    sub: () => (a.trainFreq === 0 ? 'Et sinon, comment tu bouges : marche, vélo, escaliers… tout compte.' : 'Le sport, la durée des séances, l\'intensité, à quel moment de la journée…'),
+    placeholder: () => (a.trainFreq === 0 ? 'ex : pas de sport, mais je marche 30 min par jour et je vais au taf à vélo' : 'ex : muscu 4x/semaine 1h15 le soir en push/pull/legs, foot le dimanche matin'),
   },
 
   /* ---------- 4. Alimentation ---------- */
@@ -288,7 +277,8 @@ export function renderOnboarding(root, done) {
     }
     if (st.kind === 'multi') { if (!(a[st.key] || []).length) a[st.key] = st.key === 'restrictions' ? ['none'] : ['autre']; return go(1); }
     if (st.kind === 'result') {
-      if (a.trainFreq === 0) a.training = [];
+      a.training = sportsFromText(a.trainText);
+      if (a.trainFreq === 0 && !a.training.length) a.training = [];
       if (a.goal === 'maintain') { a.pace = null; a.targetWeight = null; }
       const t = computeTargets(a);
       setProfile(a);
@@ -325,4 +315,14 @@ function resultHtml() {
       <p class="small muted" style="margin:10px 0 0">C'est une estimation de départ : ajuste après 2-3 semaines selon l'évolution de ton poids. Tu peux tout modifier dans ton profil.</p>
     </div>
     ${tips.map((x) => `<div class="tip">✦ ${esc(x)}</div>`).join('')}`;
+}
+
+// Déduit le type de sport à partir de ce que la personne a écrit (sert au calcul des protéines)
+function sportsFromText(t = '') {
+  const n = t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const out = [];
+  if (/muscu|musculation|street ?workout|calisthenics|crossfit|salle|fitness|powerlifting|halt[eè]ro|bodybuilding|ppl|push|pull/.test(n)) out.push('muscu');
+  if (/course|courir|running|footing|jogging|cardio|velo|cyclisme|natation|nage|rameur|marathon|trail/.test(n)) out.push('cardio');
+  if (/foot|basket|hand|rugby|volley|tennis|padel|boxe|mma|judo|karate|lutte|jjb|combat|kick/.test(n)) out.push('sportco');
+  return out;
 }
