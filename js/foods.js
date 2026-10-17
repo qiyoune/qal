@@ -1,4 +1,5 @@
 // Sources de données : Ciqual (local) + Open Food Facts (en ligne)
+import { OFF_PROXY } from './config.js';
 
 /* ---------- Ciqual (table officielle ANSES, aliments bruts) ---------- */
 let ciqual = null;
@@ -65,7 +66,7 @@ export function fromOFF(p) {
   const name = (p.product_name_fr || p.product_name || p.generic_name_fr || '').trim();
   return {
     name: name || 'Produit sans nom',
-    brand: (p.brands || '').split(',')[0].trim(),
+    brand: (Array.isArray(p.brands) ? p.brands[0] || '' : (p.brands || '').split(',')[0]).trim(),
     code: p.code || '',
     img: p.image_front_small_url || p.image_front_thumb_url || '',
     quantity: p.quantity || '',
@@ -87,28 +88,45 @@ export async function getProduct(code) {
 
 // Recherche limitée à ~10 requêtes/min par Open Food Facts : on espace les appels.
 let lastSearch = 0;
-export async function searchOFF(q, signal) {
-  const wait = Math.max(0, lastSearch + 6000 - Date.now());
-  if (wait) await new Promise((res, rej) => {
-    const t = setTimeout(res, wait);
-    signal?.addEventListener('abort', () => { clearTimeout(t); rej(new DOMException('aborted', 'AbortError')); });
-  });
-  lastSearch = Date.now();
-  // fr.openfoodfacts.org = produits vendus en France ; tri par popularité (nombre de scans)
-  const url = `https://fr.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=24&sort_by=unique_scans_n&fields=${FIELDS}`;
+// Cache des recherches (24 h) : une même recherche ne repart jamais deux fois sur le réseau
+const SKEY = 'qal:off-search';
+const cacheGet = (q) => { try { const c = JSON.parse(sessionStorage.getItem(SKEY) || localStorage.getItem(SKEY) || '{}')[q]; return c && Date.now() - c.t < 864e5 ? c.items : null; } catch { return null; } };
+const cachePut = (q, items) => {
   try {
+    const all = JSON.parse(localStorage.getItem(SKEY) || '{}');
+    all[q] = { t: Date.now(), items };
+    const keys = Object.keys(all).sort((a, b) => all[b].t - all[a].t).slice(0, 40); // on garde les 40 dernières
+    localStorage.setItem(SKEY, JSON.stringify(Object.fromEntries(keys.map((k) => [k, all[k]]))));
+  } catch {}
+};
+
+export async function searchOFF(q, signal) {
+  const key = norm(q);
+  const hit = cacheGet(key);
+  if (hit) return hit;
+  let items = null;
+  // 1) notre relais (Cloudflare) vers le moteur de recherche d'Open Food Facts : rapide et sans limite gênante
+  if (OFF_PROXY) {
+    try {
+      const r = await fetch(`${OFF_PROXY}/search?q=${encodeURIComponent(q)}`, { signal });
+      if (r.ok) items = ((await r.json()).hits || []).map(fromOFF).filter((f) => f && !f.incomplete);
+    } catch (e) { if (e.name === 'AbortError') throw e; }
+  }
+  // 2) sinon, l'ancienne recherche directe (limitée à ~10 recherches par minute)
+  if (!items) {
+    const wait = Math.max(0, lastSearch + 6000 - Date.now());
+    if (wait) await new Promise((res, rej) => {
+      const t = setTimeout(res, wait);
+      signal?.addEventListener('abort', () => { clearTimeout(t); rej(new DOMException('aborted', 'AbortError')); });
+    });
+    lastSearch = Date.now();
+    const url = `https://fr.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=24&sort_by=unique_scans_n&fields=${FIELDS}`;
     const r = await fetch(url, { signal });
     if (!r.ok) throw new Error('off ' + r.status);
-    const d = await r.json();
-    return (d.products || []).map(fromOFF).filter((f) => f && !f.incomplete);
-  } catch (e) {
-    if (e.name === 'AbortError') throw e;
-    // Plan B : le nouveau moteur de recherche d'Open Food Facts
-    const r2 = await fetch(`https://search.openfoodfacts.org/search?q=${encodeURIComponent(q)}&langs=fr&page_size=24&fields=${FIELDS}`, { signal });
-    if (!r2.ok) throw new Error('off ' + r2.status);
-    const d2 = await r2.json();
-    return (d2.hits || []).map(fromOFF).filter((f) => f && !f.incomplete);
+    items = ((await r.json()).products || []).map(fromOFF).filter((f) => f && !f.incomplete);
   }
+  cachePut(key, items);
+  return items;
 }
 
 export function offAddUrl(code) {

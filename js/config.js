@@ -5,3 +5,6 @@ export const GOOGLE_CLIENT_ID = '1079120100702-hqtum8ppo8qrqgk2s1qdtp6m1rvncjfp.
 // Adresse de ton "proxy IA" (ex : un Cloudflare Worker, voir worker/README.md).
 // Vide = le chat fonctionne en mode hors ligne (il répond avec tes chiffres du jour).
 export const AI_ENDPOINT = '';
+
+// Relais de recherche Open Food Facts (Cloudflare Worker, voir worker/off-search.js). Vide = recherche directe, limitée.
+export const OFF_PROXY = '';
