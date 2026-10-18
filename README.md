@@ -17,6 +17,5 @@ Compteur de calories IA simple et précis, en web app (PWA).
 - Produits : © contributeurs Open Food Facts, base sous licence **ODbL** (crédit obligatoire, déjà affiché dans le profil)
 - Aliments bruts : **ANSES, table Ciqual 2020**, Licence Ouverte Etalab
 - Lecteur de codes-barres : `barcode-detector` et `zxing-wasm` (MIT)
-- ⚠️ **Police Alstoria** : vérifie sa licence avant de vendre l'appli (beaucoup de polices "display" sont gratuites seulement pour un usage perso). Elle ne contient que les lettres sans accents : les accents, chiffres et ponctuations des titres basculent automatiquement sur Fraunces (Google Fonts).
 
 Les objectifs calculés sont des estimations, pas un avis médical.
