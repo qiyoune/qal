@@ -10,8 +10,6 @@ Compteur de calories IA simple et précis, en web app (PWA).
 - **Synchro Google Drive** (dossier caché de l'utilisateur, aucun serveur à toi)
 - Marche hors ligne (sauf scan/recherche de produits qui ont besoin d'internet)
 
-Aucune dépendance, aucun build : du HTML/CSS/JS pur. Tu modifies un fichier, tu recharges, c'est en ligne.
-
 ```
 
 ## Licences et crédits
