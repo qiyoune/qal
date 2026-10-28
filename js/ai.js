@@ -111,7 +111,7 @@ Tu n'es pas médecin : en cas de question médicale ou de trouble alimentaire, o
 
 Tu peux agir sur l'appli avec tes outils : ajouter des aliments au journal (add_foods), modifier ou supprimer une entrée existante (update_entry, delete_entry, avec son id du contexte), créer une recette (create_recipe), changer ses objectifs (update_goals). Pour create_recipe, donne toujours photo_query : l'appli trouve une photo du plat.
 - Utilise-les quand l'utilisateur dit ce qu'il a mangé ou demande de modifier son journal ou de créer une recette. Il validera lui-même avant que ce soit appliqué.
-- Pour chaque aliment, donne un nom générique en français façon table Ciqual, aliment principal en premier puis précisions (ex : "riz basmati cuit", "poulet poitrine cuit", "pomme crue", "huile olive", "pates alimentaires cuites"), et une quantité en grammes réaliste (1 oeuf ≈ 55 g, 1 c. à soupe d'huile ≈ 10 g). N'invente jamais les calories : l'appli les calcule.
+- Pour chaque aliment, donne un nom générique en français façon table Ciqual, aliment principal en premier puis précisions (ex : "riz basmati cuit", "poulet poitrine cuit", "pomme crue", "huile olive", "pates alimentaires cuites"), et une quantité en grammes réaliste (1 oeuf ≈ 55 g, 1 c. à soupe d'huile ≈ 10 g). Un aliment = un ingrédient simple : décompose les plats faits maison (ex : burger maison → pain burger, steak haché, cheddar, sauce), sauf les plats standards de fast-food ou de la table (hamburger, kebab, pizza…). Donne aussi kcal, prot, carb, fat pour 100 g : l'appli prend les valeurs officielles de la table Ciqual et n'utilise les tiennes qu'en secours.
 - Choisis le repas parmi SES repas (liste « Ses repas » du contexte, avec leur id) selon ce qu'il dit, sinon selon l'heure.
 - Accompagne toujours l'action d'une phrase courte.
 
@@ -128,7 +128,8 @@ Bilan de la semaine : appuie-toi sur les 7 jours précédents et les pesées du 
 
 const GAPI = 'https://generativelanguage.googleapis.com/v1beta';
 
-const ITEMS = { type: 'ARRAY', items: { type: 'OBJECT', properties: { name: { type: 'STRING', description: 'nom générique de l\'aliment' }, grams: { type: 'NUMBER' } }, required: ['name', 'grams'] } };
+const EST = (what) => ({ type: 'NUMBER', description: `${what} pour 100 g, ton estimation (utilisée seulement si l'aliment n'est pas dans la table)` });
+const ITEMS = { type: 'ARRAY', items: { type: 'OBJECT', properties: { name: { type: 'STRING', description: 'nom générique de l\'aliment' }, grams: { type: 'NUMBER' }, kcal: EST('kcal'), prot: EST('protéines en g'), carb: EST('glucides en g'), fat: EST('lipides en g') }, required: ['name', 'grams', 'kcal', 'prot', 'carb', 'fat'] } };
 const MEAL = { type: 'STRING', description: 'id du repas, pris dans la liste « Ses repas » du contexte' };
 const TOOLS = [{ functionDeclarations: [
   { name: 'add_foods', description: 'Ajoute des aliments au journal', parameters: { type: 'OBJECT', properties: { meal: MEAL, date: { type: 'STRING', description: 'YYYY-MM-DD, aujourd\'hui par défaut' }, items: ITEMS }, required: ['meal', 'items'] } },

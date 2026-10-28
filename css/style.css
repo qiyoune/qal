@@ -589,6 +589,10 @@ html:root[data-theme="dark"] .star-track { fill: #362C28; }
 .action-card li b { white-space: nowrap; font-weight: 700; }
 .action-card li.missing { color: var(--text-2); }
 .action-card li.missing b { color: var(--accent); font-weight: 600; }
+.action-card li[data-swap] { cursor: pointer; }
+.action-card li[data-swap]:active { opacity: .6; }
+.ac-est { font-style: normal; color: var(--accent); font-weight: 800; }
+.ac-note { margin: 6px 0 0; font-size: 12px; color: var(--text-2); line-height: 1.4; }
 .ac-total { margin-top: 6px; font-size: 13px; font-weight: 800; color: var(--accent); }
 .ac-prep { margin: 8px 0 0; font-size: 13px; color: var(--text-body); line-height: 1.5; max-height: 140px; overflow: auto; }
 .ac-btns { display: flex; gap: 8px; margin-top: 12px; }

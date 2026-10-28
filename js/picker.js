@@ -6,12 +6,12 @@ import { scale, fmt } from './nutrition.js';
 
 const badge = (src) => ({ ciqual: '<span class="badge ciqual">ciqual</span>', off: '<span class="badge off">off</span>', perso: '<span class="badge perso">perso</span>', recette: '<span class="badge perso">recette</span>' }[src] || '');
 
-export function openIngredientPicker({ onPick }) {
+export function openIngredientPicker({ onPick, query = '', cta = 'ajouter à la recette', grams: startGrams }) {
   const sheet = openSheet(`
     <h2>ajouter un ingredient</h2>
     <form class="search section" id="pk-form" autocomplete="off">
       ${icons.search}
-      <input id="pk-in" type="search" enterkeyhint="search" placeholder="riz, poulet, ou un code-barres" />
+      <input id="pk-in" type="search" enterkeyhint="search" placeholder="riz, poulet, ou un code-barres" value="${esc(query)}" />
     </form>
     <div id="pk-res" class="section"></div>`);
   const input = $('#pk-in', sheet);
@@ -39,7 +39,7 @@ export function openIngredientPicker({ onPick }) {
   };
 
   const grams = (food) => {
-    let g = food.lastGrams || 100;
+    let g = startGrams || food.lastGrams || 100;
     sheet.innerHTML = `
       <h2 style="font-family:var(--font);font-weight:800;text-transform:none;font-size:22px">${esc(food.name)}</h2>
       <p class="small muted" style="margin:4px 0 0">${badge(food.source)}${esc(food.brand || '')}</p>
@@ -49,7 +49,7 @@ export function openIngredientPicker({ onPick }) {
         <button class="step" data-step="10">+</button>
       </div>
       <p class="per100" id="pk-kcal"></p>
-      <button class="btn btn-primary section" id="pk-add">ajouter à la recette</button>`;
+      <button class="btn btn-primary section" id="pk-add">${esc(cta)}</button>`;
     const gi = $('#pk-g', sheet);
     const upd = () => { $('#pk-kcal', sheet).textContent = `${fmt(scale(food.per100, g || 0).kcal)} kcal`; };
     gi.addEventListener('input', () => { g = num(gi.value) || 0; upd(); });
@@ -81,5 +81,6 @@ export function openIngredientPicker({ onPick }) {
 
   input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(draw, 120); });
   $('#pk-form', sheet).onsubmit = (e) => { e.preventDefault(); input.blur(); runOFF(); };
+  if (query) draw();
   setTimeout(() => input.focus(), 300);
 }

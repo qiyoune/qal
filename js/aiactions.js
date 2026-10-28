@@ -21,21 +21,39 @@ const validMeal = (m) => {
 const grams = (g) => Math.max(1, Math.min(3000, Math.round(+g || 0)));
 
 // Cherche l'aliment : d'abord tes aliments et recettes, puis la table Ciqual
-const STOP = new Set(['de', 'du', 'des', 'la', 'le', 'les', 'l', 'd', 'au', 'aux', 'a', 'et', 'en', 'un', 'une', 'avec', 'sans']);
-const keyWords = (txt) => norm(txt).split(' ').filter((w) => w.length > 1 && !STOP.has(w));
+const STOP = new Set(['de', 'du', 'des', 'la', 'le', 'les', 'l', 'd', 'au', 'aux', 'a', 'et', 'en', 'un', 'une', 'avec', 'sans', 'ou', 'pour',
+  'maison', 'fait', 'faite', 'tranche', 'morceau', 'portion', 'part', 'petit', 'petite', 'gros', 'grosse', 'grand', 'grande', 'bol', 'assiette', 'cuillere', 'verre']);
+// pluriel → singulier : « pommes » trouve « Pomme, crue », « frites » trouve « Frites… »
+const stem = (w) => (w.length > 3 ? w.replace(/(s|x)$/, '') : w);
+const keyWords = (txt) => norm(txt).split(' ').map(stem).filter((w) => w.length > 1 && !STOP.has(w));
 const STATES = ['cuit', 'cru', 'crue', 'frit', 'grille', 'vapeur', 'bouilli', 'nature', 'entier', 'demi'];
+// façon de couper ou cuire : on peut s'en passer pour trouver l'aliment (« carottes râpées » → « Carotte, crue »)
+const PREP = ['rape', 'rapee', 'emince', 'eminces', 'hache', 'coupe', 'cube', 'des', 'tranche', 'brouille', 'poele', 'saute', 'grille', 'roti', 'cuit', 'cuite', 'cru', 'crue', 'frit', 'vapeur', 'nature', 'bio'];
+// produits tirés d'un aliment : « Huile d'amande » n'est pas une amande, sauf si on demande de l'huile
+const DERIVED = ['huile', 'farine', 'jus', 'sirop', 'sauce', 'lait', 'creme', 'poudre', 'pate', 'puree', 'compote', 'confiture', 'chip', 'pizza', 'tarte', 'biscuit', 'gateau', 'glace', 'soupe', 'veloute', 'boisson', 'nectar', 'barre', 'cereale', 'specialite'];
 
-function best(list, words) {
+function bestOf(list, words, raw = []) {
   const need = Math.max(1, Math.ceil(words.length * 0.6));
+  const vegetal = words.some((w) => w.startsWith('vegeta'));
   let top = null, topScore = -Infinity;
   for (const f of list) {
     const n = f._n || norm(f.name + ' ' + (f.brand || ''));
     let hit = 0;
     for (const w of words) if (n.includes(w)) hit++;
     if (hit < need || !n.includes(words[0]) && hit < words.length) continue;
+    // l'aliment demandé doit être l'aliment principal (avant la 1re virgule ou parenthèse) : pas « Pilchard, sauce tomate » pour une sauce tomate
+    const main = f._h || norm(String(f.name).split(/[,(]/)[0]);
+    if (f._n) f._h = main; // cache, seulement pour la table Ciqual (pas dans tes données)
+    // … et son 1er mot : « Croissant aux amandes » n'est pas une amande, « Moules à la sauce tomate » pas une sauce
+    const lead = main.split(' ').map(stem).filter((w) => !STOP.has(w))[0];
+    if (!words.includes(lead)) continue;
+    const head = stem(n.split(' ')[0]);
+    if (DERIVED.includes(head) && !words.includes(head)) continue;
+    if (!vegetal && n.includes('vegeta')) continue; // pas de « Spécialité végétale type fromage » pour du fromage
     let score = hit * 20 - n.length / 15;
+    // mot exact (avec son pluriel) : « pâtes cuites » préfère « Pâtes…, cuites » à « Pâte sablée, cuite »
+    for (const r of raw) if (r.length > 3 && new RegExp(`\\b${r}\\b`).test(n)) score += 5;
     // l'aliment principal est au début du nom Ciqual (« Poulet, poitrine, … »)
-    const head = n.split(' ')[0];
     if (words.includes(head)) score += 18;
     if (n.startsWith(words[0])) score += 8;
     for (const st of STATES) if (words.includes(st) && !n.includes(st.replace(/e$/, ''))) score -= 12;
@@ -49,20 +67,49 @@ const SYN = [
   [/\b(blanc|filet|escalope)s? de dinde\b/, 'dinde escalope'],
   [/\bsteak hache\b/, 'boeuf steak hache'],
   [/\boeufs?\b/, 'oeuf'],
-  [/\bpates\b/, 'pates alimentaires'],
   [/\bfromage blanc\b/, 'fromage blanc'],
+  [/\bfromage rape\b/, 'emmental rape'],
+  [/\bcreme fraiche\b/, 'creme de lait'],
+  [/\bbaguette\b/, 'pain baguette'],
+  [/\b(spaghettis?|tagliatelles?|penne|coquillettes?|macaronis?|fusillis?)\b/, 'pates'],
 ];
 async function findFood(name) {
   let q = norm(name);
   for (const [re, rep] of SYN) q = q.replace(re, rep);
   const words = keyWords(q);
   if (!words.length) return null;
+  const raw = q.split(' ');
+  const best = (list, w) => bestOf(list, w, raw);
   const mine = [...listRecipes().map(recipeAsFood), ...customFoods(), ...recentFoods(200)];
   const own = best(mine, words);
   if (own && words.every((w) => norm(own.name + ' ' + (own.brand || '')).includes(w))) return own;
-  const ciq = best(await loadCiqual(), words);
-  return ciq || own || null;
+  const list = await loadCiqual();
+  const ciq = best(list, words);
+  if (ciq || own) return ciq || own;
+  // rien d'exact : on retire les précisions de la fin (« lentilles corail cuites bio » → « lentilles corail cuites »)
+  // mais jamais jusqu'à un seul mot : « sauce samouraï » ne doit pas devenir « sauce soja »
+  for (let k = words.length - 1; k >= 2; k--) {
+    const f = best(list, words.slice(0, k));
+    if (f) return f;
+  }
+  // sans la façon de préparer : seul l'aliment exact compte (« carotte » → « Carotte, crue », pas « Carottes râpées en sauce »)
+  const base = words.filter((w) => !PREP.includes(w));
+  if (base.length && base.length < words.length) {
+    const f = best(list, base);
+    if (f && (base.length > 1 || stem(f._h.split(' ')[0]) === base[0])) return f;
+  }
+  return null;
 }
+
+// Pas dans la table : on garde l'estimation de l'IA (pour 100 g) plutôt que « introuvable »
+function estimated(it) {
+  const v = (x) => (x == null || x === '' || isNaN(+x) ? null : Math.round(+x * 10) / 10);
+  const per100 = { kcal: v(it.kcal), prot: v(it.prot), carb: v(it.carb), fat: v(it.fat) };
+  if (per100.kcal == null || per100.kcal < 0 || per100.kcal > 900) return null;
+  const name = String(it.name || '').trim();
+  return { name: name.charAt(0).toUpperCase() + name.slice(1), brand: '', per100, source: 'ia', code: '', img: '', serving: null };
+}
+const lookup = async (it) => clean(await findFood(it.name)) || estimated(it);
 
 const clean = (f) => f && ({ name: f.name, brand: f.brand || '', per100: f.per100, source: f.source, code: f.code || '', img: f.img || '', serving: f.serving || null });
 
@@ -73,7 +120,7 @@ export async function resolveCalls(calls) {
     const a = c.args || {};
     if (c.name === 'add_foods') {
       const items = [];
-      for (const it of a.items || []) items.push({ query: it.name, grams: grams(it.grams), food: clean(await findFood(it.name)) });
+      for (const it of a.items || []) items.push({ query: it.name, grams: grams(it.grams), food: await lookup(it) });
       const date = /^\d{4}-\d{2}-\d{2}$/.test(a.date || '') ? a.date : dateStr();
       out.push({ type: 'add', meal: validMeal(a.meal), date, items });
     } else if (c.name === 'update_entry' || c.name === 'delete_entry') {
@@ -91,7 +138,7 @@ export async function resolveCalls(calls) {
       if (g) out.push(g);
     } else if (c.name === 'create_recipe') {
       const ingredients = [];
-      for (const it of a.ingredients || []) ingredients.push({ query: it.name, grams: grams(it.grams), food: clean(await findFood(it.name)) });
+      for (const it of a.ingredients || []) ingredients.push({ query: it.name, grams: grams(it.grams), food: await lookup(it) });
       const name = String(a.name || 'Recette').slice(0, 60);
       const photos = await findDishPhotos(a.photo_query || name).catch(() => []);
       out.push({ type: 'recipe', name, portions: Math.max(1, Math.min(50, Math.round(+a.portions || 1))), preparation: String(a.preparation || '').slice(0, 3000), ingredients, photos, photoIdx: 0 });
@@ -142,15 +189,21 @@ function goalsProposal(a) {
 }
 const chg = (label, a, b, unit = '') => `<li><span>${label}</span><b>${a === b ? `${esc(b ?? '–')}${unit}` : `${esc(a ?? '–')}${unit} → ${esc(b ?? '–')}${unit}`}</b></li>`;
 
-const line = (it) => it.food
-  ? `<li><span>${esc(it.food.name)}</span><b>${fmt(it.grams)} g · ${fmt(scale(it.food.per100, it.grams).kcal)} kcal</b></li>`
-  : `<li class="missing"><span>${esc(it.query)}</span><b>introuvable</b></li>`;
+// En attente de validation, chaque ligne se touche pour choisir un autre aliment
+const line = (it, k, pending) => {
+  const attr = pending ? ` data-swap="${k}" role="button" tabindex="0"` : '';
+  if (!it.food) return `<li class="missing"${attr}><span>${esc(it.query)}</span><b>${pending ? 'choisir ›' : 'non ajouté'}</b></li>`;
+  const est = it.food.source === 'ia' ? '<i class="ac-est" title="valeurs estimées par l’IA">≈</i> ' : '';
+  return `<li${attr}><span>${est}${esc(it.food.name)}</span><b>${fmt(it.grams)} g · ${fmt(scale(it.food.per100, it.grams).kcal)} kcal</b></li>`;
+};
+const lines = (list, p) => { const pending = !p.status || p.status === 'pending'; return list.map((it, k) => line(it, k, pending)).join(''); };
+const estNote = (list) => (list.some((i) => i.food?.source === 'ia') ? '<p class="ac-note">≈ pas trouvé dans la table : valeurs estimées par l’IA. Touche une ligne pour choisir un autre aliment.</p>' : '');
 
 export function proposalHtml(p) {
   if (p.type === 'add') {
     const ok = p.items.filter((i) => i.food);
     const kcal = ok.reduce((s, i) => s + (scale(i.food.per100, i.grams).kcal || 0), 0);
-    return `<div class="ac-title">ajouter · ${esc(mealLabel(p.meal))}${p.date !== dateStr() ? ` · ${esc(p.date)}` : ''}</div><ul>${p.items.map(line).join('')}</ul><div class="ac-total">${fmt(kcal)} kcal</div>`;
+    return `<div class="ac-title">ajouter · ${esc(mealLabel(p.meal))}${p.date !== dateStr() ? ` · ${esc(p.date)}` : ''}</div><ul>${lines(p.items, p)}</ul><div class="ac-total">${fmt(kcal)} kcal</div>${estNote(p.items)}`;
   }
   if (p.type === 'update') {
     const k = scale(p.per100, p.to.grams).kcal;
@@ -182,7 +235,7 @@ export function proposalHtml(p) {
     const ph = p.photos?.[p.photoIdx];
     const photoHtml = p.photoGen === 'busy' ? '<div class="ac-photo"><span class="ac-nophoto">je génère une photo du plat…</span></div>'
       : p.photos?.length ? `<div class="ac-photo">${ph ? `<img src="${esc(ph.url)}" alt="" loading="lazy" onerror="this.style.opacity=0" />` : '<span class="ac-nophoto">sans photo</span>'}${p.status === 'pending' || !p.status ? `<button type="button" class="rp-btn" data-photo>${ph ? 'autre photo' : 'remettre une photo'}</button>` : ''}</div>${ph ? `<div class="ac-credit">photo : ${esc(ph.credit)}</div>` : ''}` : '';
-    return `${photoHtml}<div class="ac-title">nouvelle recette : ${esc(p.name)}</div><ul>${p.ingredients.map(line).join('')}</ul><div class="ac-total">${fmt(tot / p.portions)} kcal / portion · ${p.portions} portion${p.portions > 1 ? 's' : ''}</div>${p.preparation ? `<p class="ac-prep">${esc(p.preparation).replace(/\n/g, '<br>')}</p>` : ''}`;
+    return `${photoHtml}<div class="ac-title">nouvelle recette : ${esc(p.name)}</div><ul>${lines(p.ingredients, p)}</ul><div class="ac-total">${fmt(tot / p.portions)} kcal / portion · ${p.portions} portion${p.portions > 1 ? 's' : ''}</div>${estNote(p.ingredients)}${p.preparation ? `<p class="ac-prep">${esc(p.preparation).replace(/\n/g, '<br>')}</p>` : ''}`;
   }
   return '';
 }

@@ -6,6 +6,7 @@ import { getState } from '../store.js';
 import { resolveCalls, proposalHtml, applyProposal, canApply, proposalSummary } from '../aiactions.js';
 import { toast } from '../ui.js';
 import { attachMic, micSvg } from '../voice.js';
+import { openIngredientPicker } from '../picker.js';
 
 const SUGGESTIONS = [
   'J\'ai mangé 200 g de riz et un blanc de poulet ce midi',
@@ -64,6 +65,18 @@ export function renderChat(root, ui, nav) {
       if (!a || a.status !== 'pending' || !a.p.photos?.length) return;
       a.p.photoIdx = (a.p.photoIdx + 1) % (a.p.photos.length + 1); // le dernier cran = sans photo
       saveChat(msgs); draw();
+    })), 0);
+    // toucher une ligne d'aliment : en choisir un autre (ou le trouver s'il manque)
+    setTimeout(() => list.querySelectorAll('[data-swap]').forEach((li) => (li.onclick = () => {
+      const [mi, ai] = (li.closest('.action-card')?.dataset.idx || '').split(':');
+      const a = msgs[+mi]?.actions?.[+ai];
+      if (!a || a.status !== 'pending') return;
+      const it = (a.p.items || a.p.ingredients)?.[+li.dataset.swap];
+      if (!it) return;
+      openIngredientPicker({
+        query: it.query, grams: it.grams, cta: 'choisir cet aliment',
+        onPick: ({ grams: g, ...food }) => { it.food = { img: '', serving: null, ...food }; it.grams = g; saveChat(msgs); draw(); },
+      });
     })), 0);
     setTimeout(() => list.querySelectorAll('[data-act]').forEach((b) => (b.onclick = () => {
       const [mi, ai, what] = b.dataset.act.split(':');
