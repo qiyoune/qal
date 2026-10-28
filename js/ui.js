@@ -101,6 +101,33 @@ export function askConfirm(message, { ok = 'supprimer', danger = true } = {}) {
   });
 }
 
+// Connexion Google : le Drive et l'appareil ont chacun des données, lesquelles garder ?
+// Renvoie 'remote' (le Drive), 'mine' (nouvelles réponses + journal du Drive) ou null.
+export function askDataChoice(drive, device) {
+  const fmtDay = (d) => (d ? parseDate(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : '');
+  const desc = (s) => [
+    s.name && esc(s.name),
+    s.kcal && `${s.kcal} kcal/jour`,
+    s.weight && `${String(s.weight).replace('.', ',')} kg`,
+    s.days ? `${s.days} jour${s.days > 1 ? 's' : ''} de journal${s.last ? ` (dernier : ${fmtDay(s.last)})` : ''}` : 'journal vide',
+  ].filter(Boolean).join(' · ');
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (v) => { if (done) return; done = true; closeSheet({ silent: true }); resolve(v); };
+    const sheet = openSheet(`
+      <h2 style="font-size:22px;text-transform:none;font-family:var(--font);font-weight:800;margin:4px 0 8px">Tu as déjà des données sur Google Drive</h2>
+      <p class="small muted" style="margin:0 2px 16px">Lesquelles veux-tu garder ?</p>
+      <div class="options">
+        <button class="option" id="dc-remote"><span class="em">☁️</span><span><div class="t">Mes données Google Drive</div><div class="s">${desc(drive)}</div><div class="s">Remplace ce que tu viens de remplir sur ce téléphone.</div></span></button>
+        <button class="option" id="dc-mine"><span class="em">📱</span><span><div class="t">Mes nouvelles réponses</div><div class="s">${desc(device)}</div><div class="s">Garde ton nouveau profil et tes objectifs, et récupère ton journal du Drive.</div></span></button>
+      </div>
+      <button class="btn btn-ghost" id="dc-no" style="width:100%;margin-top:12px">annuler</button>`, { onClose: () => { if (!done) { done = true; resolve(null); } } });
+    $('#dc-remote', sheet).onclick = () => finish('remote');
+    $('#dc-mine', sheet).onclick = () => finish('mine');
+    $('#dc-no', sheet).onclick = () => finish(null);
+  });
+}
+
 /* ---------- Décor ---------- */
 export function sparkles() {
   const host = $('#sparkles');

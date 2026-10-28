@@ -1,5 +1,5 @@
 // Options : apparence, IA, synchro, sauvegarde
-import { esc, icons, toast, $, askConfirm } from '../ui.js';
+import { esc, icons, toast, $, askConfirm, askDataChoice } from '../ui.js';
 import { getState, exportData, importData, resetAll, MEALS, MEAL_PRESETS, setMealSlots, uid } from '../store.js';
 import * as drive from '../drive.js';
 import { getThemePref, setThemePref } from '../fx.js';
@@ -169,7 +169,12 @@ export function renderSettings(root, ui, nav) {
     renderProfile(root, ui, nav);
   };
   $('#s-on', root)?.addEventListener('click', async () => {
-    try { await drive.connect(); await doSync(); } catch (e) { toast('connexion annulée'); }
+    try {
+      const mode = await drive.firstConnect(askDataChoice);
+      toast(mode === 'remote' ? 'données google drive récupérées ✦' : 'synchronisé ✦');
+      if (mode === 'remote') return nav.go('#/');
+    } catch (e) { console.warn(e); toast(e.cancel ? 'connexion annulée' : e.auth || /popup|access_denied/.test(e.message) ? 'connexion annulée' : 'synchro impossible'); }
+    renderProfile(root, ui, nav);
   });
   $('#s-now', root)?.addEventListener('click', doSync);
   $('#s-off', root)?.addEventListener('click', () => { drive.disconnect(); toast('déconnecté'); renderProfile(root, ui, nav); });

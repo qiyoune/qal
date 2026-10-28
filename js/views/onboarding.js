@@ -6,7 +6,7 @@ import { OPT, appetiteFrom } from '../answers.js';
 import { attachMic, micSvg } from '../voice.js';
 import * as drive from '../drive.js';
 import { PROVIDERS, getKey, setKey, testKey, getProvider } from '../ai.js';
-import { toast } from '../ui.js';
+import { toast, askDataChoice } from '../ui.js';
 
 let a = {};      // réponses
 let i = 0;       // étape courante
@@ -201,6 +201,7 @@ export function renderOnboarding(root, done) {
   const needsNext = st.kind !== 'choice';
   const isEmpty = (v) => v == null || v === '' || (Array.isArray(v) && !v.length);
   const after = steps.slice(i + 1).length > 0;
+  const canLogin = st.kind === 'intro' && !skipDrive && !getState().profile;
   const nextLabel = st.kind === 'result' ? (after ? 'continuer' : `c'est parti ✦`) : st.kind === 'drive' ? 'plus tard' : st.kind === 'ai' ? 'plus tard' : st.kind === 'intro' ? 'commencer' : st.optional && isEmpty(a[st.key]) ? 'passer' : 'continuer';
 
   root.innerHTML = `
@@ -211,7 +212,9 @@ export function renderOnboarding(root, done) {
         <span class="ob-spacer" aria-hidden="true"></span>
       </div>
       <div class="ob-body">${body}</div>
-      <div class="ob-foot">${needsNext ? `<button class="btn ${nextLabel === 'plus tard' ? 'btn-ghost' : 'btn-primary'}" id="ob-next">${nextLabel}</button>` : ''}</div>
+      <div class="ob-foot">${needsNext ? `<button class="btn ${nextLabel === 'plus tard' ? 'btn-ghost' : 'btn-primary'}" id="ob-next">${nextLabel}</button>` : ''}${canLogin ? `
+        <button class="btn btn-ghost" id="ob-login" style="margin-top:10px">${icons.cloud.replace('<svg', '<svg width="18" height="18"')} se connecter avec Google</button>
+        <p class="small muted" id="ob-login-st" style="margin:6px 4px 0;text-align:center">Déjà utilisé qal ? Récupère tes données.</p>` : ''}</div>
     </div>`;
 
   const rerender = () => renderOnboarding(root, done);
@@ -266,18 +269,29 @@ export function renderOnboarding(root, done) {
     };
   });
 
+  // Première page : déjà inscrit → on récupère tout depuis le Drive
+  $('#ob-login', root)?.addEventListener('click', async () => {
+    const b = $('#ob-login', root), stEl = $('#ob-login-st', root);
+    b.disabled = true; stEl.textContent = 'connexion…';
+    try {
+      await drive.firstConnect(askDataChoice);
+      skipDrive = true;
+      if (getState().profile) { toast('content de te revoir ✦'); return done(true); }
+      toast('aucune donnée trouvée sur ton Drive, on fait connaissance ✦');
+      go(1);
+    } catch (e) { b.disabled = false; stEl.textContent = e.cancel ? '' : 'Connexion annulée ou impossible.'; }
+  });
+
   // Étape synchro Google Drive
   $('#ob-drive', root)?.addEventListener('click', async () => {
     const b = $('#ob-drive', root), stEl = $('#ob-drive-st', root);
     b.disabled = true; stEl.textContent = 'connexion…';
     try {
-      await drive.connect();
-      stEl.textContent = 'synchronisation…';
-      await drive.sync();
-      toast('google drive connecté ✦');
+      const mode = await drive.firstConnect(askDataChoice);
+      toast(mode === 'remote' ? 'données google drive récupérées ✦' : 'google drive connecté ✦');
       skipDrive = true; // l'étape disparaît de la liste : on reste au même index
-      if (after) rerender(); else done(true);
-    } catch (e) { b.disabled = false; stEl.textContent = 'Connexion annulée ou impossible. Tu pourras le faire plus tard dans Options.'; }
+      if (after && visible().length > i) rerender(); else done(true);
+    } catch (e) { b.disabled = false; stEl.textContent = e.cancel ? '' : 'Connexion annulée ou impossible. Tu pourras le faire plus tard dans Options.'; }
   });
   // Étape clé IA
   root.querySelectorAll('[data-prov]').forEach((b) => (b.onclick = () => { aiProv = b.dataset.prov; rerender(); }));
