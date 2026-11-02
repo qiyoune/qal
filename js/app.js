@@ -132,9 +132,13 @@ applyPeriod();
 setInterval(applyPeriod, 60_000);
 sparkles();
 bigStars();
+// rouvert sur le questionnaire alors que le profil est déjà fait : on va au journal
+if (getState().profile && route() === '#/onboarding') location.replace('#/');
 render();
 splash();
 loadCiqual().catch(() => {});
+// demande au navigateur de ne pas vider nos données tout seul quand il manque de place
+navigator.storage?.persist?.().catch(() => {});
 if (drive.isConnected() && drive.hasValidToken()) drive.sync().catch(() => {});
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {

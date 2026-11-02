@@ -145,16 +145,27 @@ const SECTIONS = ['toi', 'objectif', 'activité', 'alimentation', 'santé'];
 
 const visible = () => STEPS.filter((s) => !s.skip?.());
 
+// Brouillon du questionnaire : si l'appli est fermée ou rechargée en cours de route
+// (ex : aller voir ses pas dans l'app Santé), on reprend là où on en était.
+const DRAFT = 'qal:ob-draft';
+function loadDraft() { try { return JSON.parse(localStorage.getItem(DRAFT) || 'null'); } catch { return null; } }
+function saveDraft(key) { try { localStorage.setItem(DRAFT, JSON.stringify({ a, key })); } catch {} }
+function clearDraft() { try { localStorage.removeItem(DRAFT); } catch {} }
+
+// iPhone : Safari et l'icône de l'écran d'accueil ne partagent pas leurs données
+const inIosSafari = () => /iP(hone|od|ad)/.test(navigator.userAgent) && !navigator.standalone && !matchMedia('(display-mode: standalone)').matches;
+
 export function startOnboarding() {
   const p = getState().profile;
-  a = p ? { ...p } : { training: [] };
-  a.mealIds = MEALS.filter((m) => MEAL_PRESETS.some((x) => x.id === m.id)).map((m) => m.id);
+  const draft = p ? null : loadDraft();
+  a = p ? { ...p } : draft?.a || { training: [] };
+  if (!draft) a.mealIds = MEALS.filter((m) => MEAL_PRESETS.some((x) => x.id === m.id)).map((m) => m.id);
   if (!a.habits && p?.appetite && p.appetite !== 'normal') a.habits = [p.appetite];
   // déjà fait ? on ne redemande pas
   skipDrive = !drive.isConfigured() || drive.isConnected();
   skipAi = Object.keys(PROVIDERS).some((x) => getKey(x));
   aiProv = getProvider();
-  i = 0;
+  i = draft?.key ? Math.max(0, visible().findIndex((s) => s.key === draft.key)) : 0;
 }
 
 export function renderOnboarding(root, done) {
@@ -163,6 +174,7 @@ export function renderOnboarding(root, done) {
   const st = steps[i];
   const progress = Math.round(((i + 1) / steps.length) * 100);
   const canBack = i > 0 || !!getState().profile;
+  if (!getState().profile) saveDraft(st.key);
 
   let body = '';
   if (st.kind === 'result') body = resultHtml();
@@ -180,6 +192,7 @@ export function renderOnboarding(root, done) {
     const si = SECTIONS.indexOf(st.section);
     const sub = typeof st.sub === 'function' ? st.sub() : st.sub;
     body = `${si >= 0 ? `<div class="ob-section">${si + 1} / ${SECTIONS.length} · ${st.section}</div>` : ''}<h1>${plain(st.title())}</h1>${sub ? `<p class="ob-sub">${sub}</p>` : ''}`;
+    if (st.kind === 'intro' && inIosSafari()) body += `<div class="tip">✦ Ajoute d'abord qal à ton écran d'accueil (bouton Partager → « Sur l'écran d'accueil »), puis ouvre-la depuis l'icône. Sinon, ce que tu remplis ici dans Safari ne sera pas dans l'appli.</div>`;
     if (st.kind === 'longtext') {
       const ph = typeof st.placeholder === 'function' ? st.placeholder() : st.placeholder;
       const v = a[st.key] || '';
@@ -276,7 +289,7 @@ export function renderOnboarding(root, done) {
     try {
       await drive.firstConnect(askDataChoice);
       skipDrive = true;
-      if (getState().profile) { toast('content de te revoir ✦'); return done(true); }
+      if (getState().profile) { clearDraft(); toast('content de te revoir ✦'); return done(true); }
       toast('aucune donnée trouvée sur ton Drive, on fait connaissance ✦');
       go(1);
     } catch (e) { b.disabled = false; stEl.textContent = e.cancel ? '' : 'Connexion annulée ou impossible.'; }
@@ -353,6 +366,7 @@ export function renderOnboarding(root, done) {
       if (a.goal === 'maintain') { a.pace = null; a.targetWeight = null; }
       const t = computeTargets(a);
       setProfile(a);
+      clearDraft();
       setGoals({ kcal: t.kcal, prot: t.prot, carb: t.carb, fat: t.fat, fiber: t.fiber, custom: false });
       if (after) go(1); else done(true);
     }
