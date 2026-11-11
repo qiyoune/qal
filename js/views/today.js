@@ -1,5 +1,6 @@
 // Écran principal : le journal du jour
-import { esc, icons, dayLabel, addDays, dateStr, plain, $ } from '../ui.js';
+import { esc, icons, dayLabel, addDays, dateStr, plain, toast, $ } from '../ui.js';
+import * as drive from '../drive.js';
 import { MEALS, mealLabel, entriesFor, getState } from '../store.js';
 import { totals, scale, fmt } from '../nutrition.js';
 import { starPath, burst } from '../fx.js';
@@ -56,6 +57,8 @@ export function renderToday(root, ui, nav) {
       <button class="icon-btn" id="go-settings" aria-label="Options">${icons.gear}</button>
     </header>
 
+    ${syncPill()}
+
     <section class="hero-star section ${over ? 'over' : ''}" aria-label="${fmt(Math.abs(left))} kcal ${over ? 'au-dessus de ton objectif' : 'restantes'}">
       <div class="star-wrap">
         <svg class="halo" viewBox="-1 -1 2 2" aria-hidden="true"><path d="${HALO}"/></svg>
@@ -93,8 +96,27 @@ export function renderToday(root, ui, nav) {
   $('#d-prev', root).onclick = () => { ui.date = addDays(ui.date, -1); nav.render(); };
   $('#d-next', root).onclick = () => { if (!isToday) { ui.date = addDays(ui.date, 1); nav.render(); } };
   $('#go-settings', root).onclick = () => nav.go('#/settings');
+  $('#sync-now', root)?.addEventListener('click', async (e) => {
+    const b = e.currentTarget;
+    if (b.disabled) return;
+    b.disabled = true; b.classList.add('busy'); b.querySelector('span').textContent = 'synchronisation…';
+    try { await drive.syncNow(); toast('synchronisé ✦'); }
+    catch (err) { console.warn(err); toast(err.auth || /popup|access_denied/.test(err.message) ? 'connexion Google annulée' : 'synchro impossible (connexion ?)'); }
+    nav.render();
+  });
   root.querySelectorAll('[data-add]').forEach((b) => (b.onclick = () => nav.openAdd(b.dataset.add, 'search')));
   root.querySelectorAll('[data-entry]').forEach((b) => (b.onclick = () => nav.editEntry(b.dataset.entry)));
+}
+
+// Pastille de synchro Google Drive : l'état, et un tap pour synchroniser maintenant.
+// Le jeton Google ne dure qu'1 h : passé ce délai la synchro auto s'arrête jusqu'au prochain tap.
+function syncPill() {
+  if (!drive.isConnected()) return '';
+  const paused = !drive.hasValidToken();
+  const last = getState().meta.lastSync;
+  const when = last ? (dateStr(new Date(last)) === dateStr() ? '' : dayLabel(dateStr(new Date(last))) + ' ') + new Date(last).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
+  const txt = paused ? 'synchro en pause · synchroniser maintenant' : `synchronisé${when ? ' · ' + when : ''}`;
+  return `<div class="sync-row"><button class="sync-pill ${paused ? 'paused' : ''}" id="sync-now" aria-label="Synchroniser maintenant avec Google Drive">${icons.cloud.replace('<svg', '<svg width="15" height="15"')}<span>${txt}</span></button></div>`;
 }
 
 // L'étoile se remplit depuis son niveau précédent ; gerbe d'étoiles après un ajout

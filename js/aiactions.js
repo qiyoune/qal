@@ -131,7 +131,7 @@ export async function resolveCalls(calls) {
     } else if (c.name === 'create_food') {
       const n = (v) => (v == null || isNaN(+v) ? null : Math.round(+v * 10) / 10);
       out.push({ type: 'food', name: String(a.name || 'Produit').slice(0, 60), brand: String(a.brand || '').slice(0, 40), code: String(a.barcode || '').replace(/\D/g, ''),
-        per100: { kcal: n(a.kcal), prot: n(a.prot), carb: n(a.carb), fat: n(a.fat), sugar: n(a.sugar), fiber: n(a.fiber), salt: n(a.salt) },
+        per100: { kcal: n(a.kcal), prot: n(a.prot), carb: n(a.carb), fat: n(a.fat), sugar: n(a.sugar), fiber: n(a.fiber), salt: a.salt == null || isNaN(+a.salt) ? null : Math.round(+a.salt * 100) / 100 },
         serving: n(a.serving_grams) ? { grams: n(a.serving_grams), label: 'portion' } : null });
     } else if (c.name === 'update_goals') {
       const g = goalsProposal(a);

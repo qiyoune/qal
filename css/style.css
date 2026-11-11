@@ -684,3 +684,14 @@ html:root[data-theme="dark"] .star-track { fill: #362C28; }
 .chips.me-add { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; overflow: visible; padding: 0; }
 
 .ob-hero { font-size: 46px; line-height: 1; color: var(--accent); }
+
+/* ---------- Pastille de synchro (journal) ---------- */
+.sync-row { display: flex; justify-content: center; margin: 4px 0 0; }
+.sync-pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--text-2); border: 1px solid var(--border); }
+.sync-pill:active { opacity: .6; }
+.sync-pill.paused { color: var(--accent); border-color: var(--accent-border); background: var(--accent-light); }
+.sync-pill.busy svg { animation: sync-pulse 1s ease-in-out infinite; }
+@keyframes sync-pulse { 50% { opacity: .3; } }
+
+/* ---------- Récents par jour ---------- */
+.day-title { text-transform: capitalize; }

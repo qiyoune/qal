@@ -156,6 +156,12 @@ export async function firstConnect(choose) {
   }
 }
 
+// Synchro demandée par un tap : si le jeton Google (1 h) a expiré, on le redemande d'abord
+export async function syncNow() {
+  if (!hasValidToken()) await connect({ silent: true });
+  return sync();
+}
+
 let timer = null;
 export function scheduleSync(onDone) {
   if (!isConnected() || !hasValidToken()) return;

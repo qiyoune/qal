@@ -246,6 +246,15 @@ export const testGeminiKey = (key) => testKey('gemini', key);
 
 export const isOnline = () => !!AI_ENDPOINT || Object.keys(PROVIDERS).some((p) => getKey(p));
 
+// Lit une photo d'étiquette nutritionnelle : renvoie les arguments de create_food (valeurs pour 100 g)
+export async function readLabel(image, code = '') {
+  if (!Object.keys(PROVIDERS).some((p) => getKey(p))) { const e = new Error('nokey'); e.noKey = true; throw e; }
+  const reply = await ask([{ role: 'user', image, text: `Voilà la photo de l'étiquette nutritionnelle d'un produit${code ? ` (code-barres ${code})` : ''}. Lis les valeurs POUR 100 g et utilise create_food. Si le tableau est illisible ou absent, dis-le en une phrase sans utiliser d'outil.` }]);
+  const call = reply.calls?.find((c) => c.name === 'create_food');
+  if (!call) { const e = new Error('unreadable'); e.unreadable = true; throw e; }
+  return { barcode: code, ...call.args };
+}
+
 export async function ask(history) {
   const context = buildContext();
   const prov = getProvider();

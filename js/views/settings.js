@@ -159,8 +159,7 @@ export function renderSettings(root, ui, nav) {
   // Synchro
   const doSync = async () => {
     try {
-      if (!drive.hasValidToken()) await drive.connect({ silent: true });
-      await drive.sync();
+      await drive.syncNow();
       toast('synchronisé ✦');
     } catch (e) {
       console.warn(e);

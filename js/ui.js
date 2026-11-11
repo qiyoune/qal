@@ -160,6 +160,24 @@ export function splash() {
 }
 
 /* ---------- Photos ---------- */
+// Réduit une photo (1024 px max) avant de l'envoyer à l'IA
+export function shrinkPhoto(file, max = 1024) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const k = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/jpeg', 0.8));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
 // Recadre au format 4:3 et réduit (photos de recettes : légères pour la synchro)
 export function photoToDataUrl(file, w = 640, h = 480, q = 0.72) {
   return new Promise((resolve, reject) => {

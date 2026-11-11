@@ -4,7 +4,7 @@ import { loadChat, saveChat, clearChat, ask, isOnline, generateDishImage, provid
 import { generateDishPhoto } from '../photos.js';
 import { getState } from '../store.js';
 import { resolveCalls, proposalHtml, applyProposal, canApply, proposalSummary } from '../aiactions.js';
-import { toast } from '../ui.js';
+import { toast, shrinkPhoto } from '../ui.js';
 import { attachMic, micSvg } from '../voice.js';
 import { openIngredientPicker } from '../picker.js';
 
@@ -143,7 +143,7 @@ export function renderChat(root, ui, nav) {
     e.target.value = '';
     if (!file) return;
     try {
-      pendingImage = await shrink(file);
+      pendingImage = await shrinkPhoto(file);
       const th = $('#c-thumb', root);
       th.innerHTML = `<img src="${pendingImage}" alt="" /><button type="button" aria-label="Retirer la photo">×</button>`;
       th.hidden = false;
@@ -161,21 +161,4 @@ export function renderChat(root, ui, nav) {
   $('#c-back', root).onclick = () => (history.length > 1 ? history.back() : nav.go('#/'));
   $('#c-clear', root).onclick = () => { if (!msgs.length) return; clearChat(); msgs = []; draw(); };
   draw();
-}
-
-function shrink(file, max = 1024) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      const k = Math.min(1, max / Math.max(img.width, img.height));
-      const c = document.createElement('canvas');
-      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
-      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-      URL.revokeObjectURL(url);
-      resolve(c.toDataURL('image/jpeg', 0.8));
-    };
-    img.onerror = reject;
-    img.src = url;
-  });
 }

@@ -106,26 +106,51 @@ export function openFoodSheet({ food, grams, meal, date, entryId, onDone, onCanc
 }
 
 /** Produit introuvable après un scan */
-export function openNotFoundSheet({ code, onCreate, onRetry }) {
+// `readLabel(file)` lit une photo de l'étiquette avec l'IA et renvoie l'aliment pré-rempli (→ onRead)
+export function openNotFoundSheet({ code, onCreate, onRetry, readLabel, onRead }) {
   const sheet = openSheet(`
     <h2>produit introuvable</h2>
-    <p class="muted" style="margin:8px 0 18px">Le code <b>${esc(code)}</b> n'est pas encore dans Open Food Facts. Recopie l'étiquette une fois, il sera enregistré pour la prochaine fois.</p>
+    <p class="muted" style="margin:8px 0 18px">Le code <b>${esc(code)}</b> n'est pas encore dans Open Food Facts. Prends en photo le tableau nutritionnel : l'IA le recopie pour toi, et le produit est enregistré pour la prochaine fois.</p>
     <div class="stack">
-      <button class="btn btn-primary" id="nf-create">créer ce produit</button>
-      <a class="btn btn-outline" href="${offAddUrl(code)}" target="_blank" rel="noopener">l'ajouter sur Open Food Facts</a>
+      <label class="btn btn-primary" id="nf-photo" style="cursor:pointer">📷 photographier l'étiquette<input type="file" id="nf-file" accept="image/*" capture="environment" hidden /></label>
+      <p class="small muted" id="nf-st" style="margin:-4px 4px 0;text-align:center" hidden></p>
+      <button class="btn btn-outline" id="nf-create">recopier à la main</button>
+      <a class="btn btn-ghost" href="${offAddUrl(code)}" target="_blank" rel="noopener">l'ajouter sur Open Food Facts</a>
       <button class="btn btn-ghost" id="nf-retry">rescanner</button>
     </div>`, { onClose: onRetry });
   $('#nf-create', sheet).onclick = () => { closeSheet({ silent: true }); onCreate(); };
   $('#nf-retry', sheet).onclick = () => closeSheet();
+  $('#nf-file', sheet).onchange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const btn = $('#nf-photo', sheet), st = $('#nf-st', sheet);
+    const say = (t) => { st.hidden = !t; st.textContent = t; };
+    btn.style.pointerEvents = 'none'; btn.style.opacity = '.5'; say('lecture de l\'étiquette…');
+    try {
+      const food = await readLabel(file);
+      if (!sheet.contains(btn)) return; // feuille fermée entre-temps
+      closeSheet({ silent: true });
+      onRead(food);
+    } catch (err) {
+      if (!sheet.contains(btn)) return;
+      btn.style.pointerEvents = ''; btn.style.opacity = '';
+      say(err.noKey ? 'Il faut une clé IA pour lire les étiquettes : ajoute-la dans Options → IA (Gemini est gratuit), ou recopie à la main.'
+        : err.unreadable ? 'Je n\'arrive pas à lire le tableau. Reprends la photo bien en face, avec la colonne « pour 100 g » visible.'
+        : err.quota ? 'Limite de l\'IA atteinte pour le moment. Réessaie dans une minute, ou recopie à la main.'
+        : 'Lecture impossible (connexion ?). Réessaie, ou recopie à la main.');
+    }
+  };
 }
 
 /** Création / édition d'un aliment perso (valeurs pour 100 g) */
-export function openCustomFoodSheet({ code = '', food = null, onSaved, onCancel }) {
+// `fromPhoto` : `food` vient d'une photo d'étiquette lue par l'IA, à vérifier avant d'enregistrer
+export function openCustomFoodSheet({ code = '', food = null, fromPhoto = false, onSaved, onCancel }) {
   const p = food?.per100 || {};
   const v = (x) => (x == null ? '' : String(x).replace('.', ','));
   const sheet = openSheet(`
-    <h2>${food ? 'modifier' : 'nouvel'} aliment</h2>
-    <p class="small muted" style="margin:6px 0 16px">Recopie l'étiquette, colonne <b>pour 100 g</b> (ou 100 ml).</p>
+    <h2>${food && !fromPhoto ? 'modifier' : 'nouvel'} aliment</h2>
+    <p class="small muted" style="margin:6px 0 16px">${fromPhoto ? 'Voilà ce que j\'ai lu sur la photo. Vérifie avec la colonne <b>pour 100 g</b> de l\'étiquette et corrige si besoin.' : 'Recopie l\'étiquette, colonne <b>pour 100 g</b> (ou 100 ml).'}</p>
     <div class="stack">
       <div class="field"><label>Nom</label><input class="input" id="c-name" value="${esc(food?.name || '')}" placeholder="ex : Galettes de riz chocolat" /></div>
       <div class="grid2">

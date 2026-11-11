@@ -1,6 +1,8 @@
 // Ajouter un aliment : scanner, rechercher, récents, recettes
-import { esc, icons, $, toast, sheetOpen } from '../ui.js';
-import { MEALS, mealForHour, recentFoods, customFoods, findFoodByCode, listRecipes, recipeAsFood, favFoods } from '../store.js';
+import { esc, icons, $, toast, sheetOpen, shrinkPhoto, dateStr, addDays, parseDate } from '../ui.js';
+import { MEALS, mealForHour, mealLabel, recentFoods, customFoods, findFoodByCode, listRecipes, recipeAsFood, favFoods, getState, foodKey } from '../store.js';
+import { readLabel } from '../ai.js';
+import { resolveCalls } from '../aiactions.js';
 import { fmt, scale } from '../nutrition.js';
 import { searchCiqual, searchOFF, getProduct, norm, loadCiqual } from '../foods.js';
 import { Scanner } from '../scanner.js';
@@ -24,6 +26,29 @@ function resultRow(f, idx, list) {
     <span class="grow"><div class="t">${esc(f.name)}</div><div class="s">${badge(f.source)}${esc(f.brand || f.group || '')}</div></span>
     <span class="k">${fmt(k)}<small>kcal/100g</small></span>
   </button>`;
+}
+
+// Les aliments du journal regroupés par jour, du plus récent au plus ancien :
+// « aujourd'hui », « hier », « mardi »… Chaque aliment une fois par jour, avec la quantité de ce jour-là.
+function eatenByDay(maxDays) {
+  const today = dateStr();
+  const byDay = new Map();
+  for (const e of Object.values(getState().entries)) {
+    if (e.deleted || !e.name || !e.date || e.date > today) continue;
+    const food = { name: e.name, brand: e.brand || '', per100: e.per100, source: e.source, code: e.code || '', img: e.img || '', serving: e.serving || null, lastGrams: e.grams };
+    const key = foodKey(food);
+    if (!byDay.has(e.date)) byDay.set(e.date, new Map());
+    const day = byDay.get(e.date);
+    if (!day.has(key) || (day.get(key).at || 0) < (e.createdAt || 0)) day.set(key, { key, food, meal: e.meal, at: e.createdAt || 0 });
+  }
+  const label = (d) => {
+    if (d === today) return "aujourd'hui";
+    if (d === addDays(today, -1)) return 'hier';
+    const date = parseDate(d);
+    return d > addDays(today, -7) ? date.toLocaleDateString('fr-FR', { weekday: 'long' }) : date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  };
+  return [...byDay.keys()].sort().reverse().slice(0, maxDays)
+    .map((d) => ({ date: d, label: label(d), items: [...byDay.get(d).values()].sort((a, b) => a.at - b.at) }));
 }
 
 export function renderAdd(root, ui, nav) {
@@ -94,6 +119,9 @@ export function renderAdd(root, ui, nav) {
             code,
             onRetry: start,
             onCreate: () => openCustomFoodSheet({ code, onSaved: (f) => pick(f, { resume: start }), onCancel: start }),
+            // photo du tableau nutritionnel → l'IA pré-remplit la fiche, à vérifier avant d'enregistrer
+            readLabel: async (file) => (await resolveCalls([{ name: 'create_food', args: await readLabel(await shrinkPhoto(file, 1600), code) }]))[0],
+            onRead: (food) => openCustomFoodSheet({ code, food, fromPhoto: true, onSaved: (f) => pick(f, { resume: start }), onCancel: start }),
           });
         } else pick(p, { resume: start });
       } catch (e) {
@@ -192,15 +220,26 @@ export function renderAdd(root, ui, nav) {
   if (tab === 'recent') {
     const favs = favFoods();
     const favKeys = new Set(favs.map((f) => f.key));
-    const recent = recentFoods(40).filter((f) => !favKeys.has(f.key));
-    lists.fav = favs; lists.recent = recent;
+    // Ce que tu as mangé, jour par jour (les 7 derniers jours notés), puis les plus anciens
+    const days = eatenByDay(7);
+    const shown = new Set(days.flatMap((d) => d.items.map((x) => x.key)));
+    const older = recentFoods(60).filter((f) => !favKeys.has(f.key) && !shown.has(f.key)).slice(0, 30);
+    lists.fav = favs; lists.older = older;
+    days.forEach((d, k) => { lists['day' + k] = d.items.map((x) => x.food); });
+    const dayRow = (x, i, list) => `<button class="result" data-list="${list}" data-i="${i}">
+      ${x.food.img ? `<img class="thumb" src="${esc(x.food.img)}" alt="" loading="lazy" />` : ''}
+      <span class="grow"><div class="t">${esc(x.food.name)}</div><div class="s">${badge(x.food.source)}${esc(mealLabel(x.meal))} · ${fmt(x.food.lastGrams)} g</div></span>
+      <span class="k">${fmt(scale(x.food.per100, x.food.lastGrams).kcal)}<small>kcal</small></span>
+    </button>`;
     body.innerHTML = `
       <div class="list-title"><span>favoris ✦</span></div>
       ${favs.length ? `<div class="card" style="padding:4px 16px">${favs.map((f, i) => resultRow(f, i, 'fav')).join('')}</div>`
         : '<p class="small muted" style="margin:4px 4px 0">Touche l\'étoile ✦ sur la fiche d\'un aliment pour l\'épingler ici.</p>'}
-      <div class="list-title section"><span>récents</span></div>
-      ${recent.length ? `<div class="card" style="padding:4px 16px">${recent.map((f, i) => resultRow(f, i, 'recent')).join('')}</div>`
-        : '<p class="small muted" style="margin:4px 4px 0">Tes aliments apparaîtront ici dès que tu en auras ajouté.</p>'}`;
+      ${days.map((d, k) => `<div class="list-title section"><span class="day-title">${esc(d.label)}</span></div>
+        <div class="card" style="padding:4px 16px">${d.items.map((x, i) => dayRow(x, i, 'day' + k)).join('')}</div>`).join('')}
+      ${older.length ? `<div class="list-title section"><span>${days.length ? 'plus anciens' : 'récents'}</span></div>
+        <div class="card" style="padding:4px 16px">${older.map((f, i) => resultRow(f, i, 'older')).join('')}</div>` : ''}
+      ${!days.length && !older.length ? '<div class="list-title section"><span>récents</span></div><p class="small muted" style="margin:4px 4px 0">Tes aliments apparaîtront ici dès que tu en auras ajouté.</p>' : ''}`;
     bindResults(body);
     return;
   }
