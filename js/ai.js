@@ -1,7 +1,7 @@
 // Chat IA : construit le contexte de l'utilisateur et l'envoie à l'IA choisie (Gemini, Claude ou ChatGPT).
 // La clé de chaque personne reste sur son appareil (localStorage) et part directement chez le fournisseur.
 import { AI_ENDPOINT } from './config.js';
-import { getState, entriesFor, MEALS, weightsList } from './store.js';
+import { getState, entriesFor, MEALS, weightsList, setPrefs } from './store.js';
 import { totals, scale, fmt, computeTargets } from './nutrition.js';
 import { dateStr, addDays } from './ui.js';
 import { label as ansLabel } from './answers.js';
@@ -98,7 +98,9 @@ export function getProvider() {
   if (PROVIDERS[p] && getKey(p)) return p;
   return Object.keys(PROVIDERS).find((x) => getKey(x)) || (PROVIDERS[p] ? p : 'gemini');
 }
-export function setProvider(p) { if (PROVIDERS[p]) ls.set(PKEY, p); }
+export function setProvider(p) { if (PROVIDERS[p]) { ls.set(PKEY, p); setPrefs({ aiProvider: p }); } }
+// Choix reçu d'un autre appareil par la synchro (les clés, elles, restent sur chaque appareil)
+export function applyProvider(p) { if (PROVIDERS[p]) ls.set(PKEY, p); }
 export const providerLabel = () => PROVIDERS[getProvider()].label;
 export const getGeminiKey = () => getKey('gemini');
 export function setGeminiKey(k) { setKey('gemini', k); }

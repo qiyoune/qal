@@ -1,6 +1,6 @@
 // qal ✦ — point d'entrée : navigation entre les écrans
 import { $, dateStr, mealForNow, sparkles, splash, closeSheet, sheetOpen, toast } from './ui.js';
-import { getState, subscribe } from './store.js';
+import { getState, subscribe, storageFull } from './store.js';
 import { renderToday } from './views/today.js';
 import { renderAdd, stopScanner } from './views/add.js';
 import { renderProfile } from './views/profile.js';
@@ -12,7 +12,8 @@ import { startOnboarding, renderOnboarding } from './views/onboarding.js';
 import { openFoodSheet } from './sheets.js';
 import { loadCiqual } from './foods.js';
 import * as drive from './drive.js';
-import { applyPeriod, bigStars } from './fx.js';
+import { applyPeriod, bigStars, getThemePref, setThemePref } from './fx.js';
+import { applyProvider } from './ai.js';
 
 const root = $('#app');
 const ui = {
@@ -102,16 +103,30 @@ window.addEventListener('hashchange', () => {
   window.scrollTo(0, 0);
 });
 
-// Re-dessine le journal quand les données changent (ex : après une synchro)
+// Réglages choisis sur un autre appareil (thème, IA utilisée) : on les applique ici aussi
+function applyPrefs() {
+  const p = getState().prefs;
+  if (!p) return;
+  if (p.theme && p.theme !== getThemePref()) setThemePref(p.theme);
+  if (p.aiProvider) applyProvider(p.aiProvider);
+}
+
+// Re-dessine l'écran quand la synchro apporte du nouveau ; envoie chaque modif locale sur le Drive
+const LIVE = ['#/', '', '#/recipes', '#/micros']; // écrans sans saisie en cours : on peut les redessiner
+let warnedFull = false;
 subscribe(({ fromSync }) => {
-  const r = route();
-  if (fromSync && (r === '#/' || r === '')) { if (!sheetOpen()) render(); }
-  if (!fromSync) drive.scheduleSync(onSyncDone);
+  if (fromSync) {
+    applyPrefs();
+    if (LIVE.includes(route()) && !sheetOpen()) render();
+  } else drive.scheduleSync();
+  if (storageFull() && !warnedFull) { warnedFull = true; toast('stockage du téléphone plein : synchronise pour ne rien perdre'); }
 });
 
-function onSyncDone(err) {
-  if (err?.auth) toast('synchro en pause : reconnecte Google dans ton profil');
-}
+drive.onAutoSync((err) => {
+  if (!err?.auth) return;
+  toast('synchro en pause : touche la pastille pour reconnecter Google');
+  if ((route() === '#/' || route() === '') && !sheetOpen()) render(); // la pastille passe en « pause »
+});
 
 // Revenir sur l'appli : nouveau jour + synchro
 document.addEventListener('visibilitychange', () => {
@@ -120,9 +135,10 @@ document.addEventListener('visibilitychange', () => {
     if (ui.lastSeenDay && ui.lastSeenDay !== today && ui.date === ui.lastSeenDay) { ui.date = today; if (route() === '#/') render(); }
     ui.lastSeenDay = today;
     applyPeriod();
-    if (drive.isConnected() && drive.hasValidToken()) drive.sync().catch(() => {});
+    drive.pull();
   } else {
     stopScanner();
+    drive.flush(); // on quitte l'appli : on envoie tout de suite ce qui attendait
   }
 });
 ui.lastSeenDay = dateStr();
@@ -139,7 +155,9 @@ splash();
 loadCiqual().catch(() => {});
 // demande au navigateur de ne pas vider nos données tout seul quand il manque de place
 navigator.storage?.persist?.().catch(() => {});
-if (drive.isConnected() && drive.hasValidToken()) drive.sync().catch(() => {});
+drive.pull();
+// Appli ouverte : on regarde chaque minute s'il y a du nouveau venant d'un autre appareil
+setInterval(() => { if (document.visibilityState === 'visible') drive.pull(); }, 60_000);
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   // Nouvelle version en ligne → on recharge une fois pour l'afficher tout de suite

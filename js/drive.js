@@ -1,7 +1,7 @@
 // Synchro via le dossier caché "appDataFolder" du Google Drive de l'utilisateur.
 // Les données ne passent par aucun serveur à toi : elles vont directement du téléphone au Drive.
 import { GOOGLE_CLIENT_ID } from './config.js';
-import { getState, merge, replaceState, setMeta } from './store.js';
+import { getState, merge, replaceState, setMeta, sameData, changeCount } from './store.js';
 
 const SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 const FILE_NAME = 'qal-data.json';
@@ -62,7 +62,7 @@ export function disconnect() {
   const t = savedToken();
   if (t && window.google?.accounts?.oauth2) google.accounts.oauth2.revoke(t, () => {});
   localStorage.removeItem(TOKEN_KEY);
-  setMeta({ driveConnected: false, lastSync: null });
+  setMeta({ driveConnected: false, lastSync: null, remoteStamp: null });
 }
 
 async function api(path, opts = {}) {
@@ -74,57 +74,91 @@ async function api(path, opts = {}) {
   return r;
 }
 
-async function findFile() {
-  const q = encodeURIComponent(`name='${FILE_NAME}'`);
-  const r = await api(`/drive/v3/files?spaces=appDataFolder&q=${q}&fields=files(id,modifiedTime)&pageSize=10`);
+// Tous les fichiers de données du dossier caché, le plus ancien d'abord.
+// Normalement un seul ; deux appareils connectés au même moment peuvent en avoir créé chacun un.
+async function listFiles() {
+  const q = encodeURIComponent(`name='${FILE_NAME}' and trashed=false`);
+  const r = await api(`/drive/v3/files?spaces=appDataFolder&q=${q}&fields=files(id,createdTime,modifiedTime)&pageSize=50`);
   const d = await r.json();
-  return d.files?.[0] || null;
+  return (d.files || []).sort((x, y) => (x.createdTime || '').localeCompare(y.createdTime || '') || x.id.localeCompare(y.id));
 }
 
 async function download(id) {
   const r = await api(`/drive/v3/files/${id}?alt=media`);
-  return r.json();
+  const txt = await r.text();
+  if (!txt.trim()) return null; // fichier créé mais jamais rempli
+  const d = JSON.parse(txt);
+  return d && typeof d === 'object' ? d : null;
 }
 
+// Envoie les données, renvoie { id, modifiedTime } du fichier
 async function upload(id, data) {
   const body = JSON.stringify(data);
   if (id) {
-    await api(`/upload/drive/v3/files/${id}?uploadType=media`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body });
-    return id;
+    const r = await api(`/upload/drive/v3/files/${id}?uploadType=media&fields=id,modifiedTime`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body });
+    return r.json();
   }
   const boundary = 'qal' + Math.random().toString(36).slice(2);
   const meta = { name: FILE_NAME, parents: ['appDataFolder'], mimeType: 'application/json' };
   const multipart = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${boundary}--`;
-  const r = await api('/upload/drive/v3/files?uploadType=multipart&fields=id', { method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body: multipart });
-  return (await r.json()).id;
+  const r = await api('/upload/drive/v3/files?uploadType=multipart&fields=id,modifiedTime', { method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body: multipart });
+  return r.json();
 }
 
-// Télécharge la version Drive, la combine avec le local selon `mode`, renvoie le résultat.
+const stampOf = (files) => files.map((f) => `${f.id}@${f.modifiedTime || ''}`).join('|');
+
+// Ce qu'il y a sur le Drive : les fichiers, et leur contenu (fusionné s'il y en a plusieurs)
+async function fetchRemote() {
+  const files = await listFiles();
+  let data = null;
+  for (const f of files) {
+    const d = await download(f.id);
+    if (d) { const { meta, ...clean } = merge(data, d); data = clean; }
+  }
+  return { files, data };
+}
+
+// Télécharge la version Drive, la combine avec le local selon `mode`, renvoie true.
 //   merge  : pour chaque élément, la version la plus récente gagne (synchro normale)
 //   remote : les données du Drive remplacent celles de l'appareil
-//   mine   : profil, objectifs et repas de l'appareil + journal fusionné avec le Drive
-export function sync({ mode = 'merge', remote: given } = {}) {
+//   mine   : profil, objectifs, repas et réglages de l'appareil + le reste fusionné avec le Drive
+// `fetched` : le résultat d'un fetchRemote() déjà fait (première connexion)
+export function sync({ mode = 'merge', fetched } = {}) {
   if (syncing) return syncing;
   syncing = (async () => {
-    const file = await findFile();
-    const remote = given !== undefined ? given : file ? await download(file.id) : null;
+    // Rien de neuf ni ici ni sur le Drive : on s'arrête là (pas de téléchargement)
+    if (mode === 'merge' && !fetched) {
+      const files = await listFiles();
+      const m = getState().meta;
+      if (files.length === 1 && !m.dirty && m.remoteStamp === stampOf(files)) { setMeta({ lastSync: Date.now() }); return true; }
+    }
+    const { files, data: remote } = fetched || await fetchRemote();
+    const before = changeCount();
     const local = getState();
     let next = remote && mode === 'remote' ? { ...remote, meta: local.meta } : merge(local, remote);
     if (remote && mode === 'mine') {
       const now = Date.now();
       const keep = (x) => (x ? { ...x, updatedAt: now } : x); // plus récent que tout : gagne aussi sur les autres appareils
-      next = { ...next, profile: keep(local.profile), goals: keep(local.goals), mealSlots: keep(local.mealSlots) };
+      next = { ...next, profile: keep(local.profile), goals: keep(local.goals), mealSlots: keep(local.mealSlots), prefs: local.prefs ? keep(local.prefs) : next.prefs };
     }
     const { meta, ...toUpload } = next;
-    await upload(file?.id, toUpload);
-    replaceState(next, { fromSync: true });
-    setMeta({ lastSync: Date.now() });
+    let main = files[0] || null;
+    // On n'envoie que s'il y a du nouveau pour le Drive (sinon on ne ferait que retarder les autres appareils)
+    if (!main || files.length > 1 || !sameData(toUpload, remote)) main = { ...main, ...(await upload(main?.id, toUpload)) };
+    // Fichiers en double : leur contenu est maintenant dans le premier, on les retire
+    for (const f of files.slice(1)) await api(`/drive/v3/files/${f.id}`, { method: 'DELETE' }).catch((e) => { if (e.auth) throw e; });
+    // Des modifs faites pendant l'envoi ? On les garde, et on les enverra à la prochaine synchro.
+    const changed = changeCount() !== before;
+    const final = changed && mode !== 'remote' ? merge(getState(), next) : next;
+    if (changed || !sameData(final, local)) replaceState(final, { fromSync: true });
+    setMeta({ lastSync: Date.now(), remoteStamp: stampOf([main]), ...(changed ? {} : { dirty: false }) });
+    if (changed) scheduleSync();
     return true;
   })().finally(() => { syncing = null; });
   return syncing;
 }
 
-const hasData = (s) => !!(s && (s.profile || Object.values(s.entries || {}).some((e) => !e.deleted)));
+const hasData = (s) => !!(s && (s.profile || ['entries', 'foods', 'recipes', 'weights'].some((k) => Object.values(s[k] || {}).some((e) => !e.deleted))));
 
 // Résumé lisible d'un jeu de données (pour choisir lequel garder)
 function summary(s) {
@@ -139,15 +173,15 @@ function summary(s) {
 export async function firstConnect(choose) {
   await connect();
   try {
-    const file = await findFile();
-    const remote = file ? await download(file.id) : null;
+    const fetched = await fetchRemote();
+    const remote = fetched.data;
     let mode = 'merge';
     if (hasData(remote) && !hasData(getState())) mode = 'remote';
     else if (hasData(remote)) {
       mode = await choose(summary(remote), summary(getState()));
       if (!mode) { const e = new Error('cancel'); e.cancel = true; throw e; }
     }
-    await sync({ mode, remote });
+    await sync({ mode, fetched });
     setMeta({ driveConnected: true });
     return mode;
   } catch (e) {
@@ -162,9 +196,24 @@ export async function syncNow() {
   return sync();
 }
 
+// Synchro en arrière-plan : seulement si Google est connecté et que le jeton est encore valable
+export const canAutoSync = () => isConnected() && hasValidToken();
+
 let timer = null;
-export function scheduleSync(onDone) {
-  if (!isConnected() || !hasValidToken()) return;
-  clearTimeout(timer);
-  timer = setTimeout(() => sync().then(() => onDone?.(null)).catch((e) => onDone?.(e)), 2500);
+let notify = null; // prévenu à la fin de chaque synchro automatique : notify(erreur ou null)
+export function onAutoSync(fn) { notify = fn; }
+function auto() {
+  clearTimeout(timer); timer = null;
+  if (!canAutoSync()) return Promise.resolve();
+  return sync().then(() => notify?.(null)).catch((e) => notify?.(e));
 }
+// Après une modif : on attend un peu (plusieurs modifs d'affilée = un seul envoi)
+export function scheduleSync() {
+  if (!canAutoSync()) return;
+  clearTimeout(timer);
+  timer = setTimeout(auto, 2500);
+}
+// L'appli passe en arrière-plan : on envoie tout de suite ce qui attendait
+export function flush() { if (timer) auto(); }
+// Vérifie s'il y a du nouveau sur le Drive (au retour sur l'appli, puis régulièrement)
+export function pull() { if (!timer) auto(); }

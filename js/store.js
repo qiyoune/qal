@@ -58,6 +58,8 @@ const empty = () => ({
   foods: {},       // key -> { key, name, brand, per100, source, code, img, serving, count, usedAt, custom, updatedAt, deleted }
   weights: {},     // date -> { date, kg, updatedAt, deleted }
   recipes: {},     // id -> { id, name, portions, ingredients: [{ name, brand, grams, per100, source, code }], updatedAt, deleted }
+  mealSlots: null, // { list: [{ id, label, hour }], updatedAt }
+  prefs: null,     // { theme, aiProvider, updatedAt } : les réglages choisis, synchronisés eux aussi
   meta: { deviceId: uid(), createdAt: Date.now() },
 });
 
@@ -75,10 +77,21 @@ function load() {
   }
 }
 
+let changes = 0;      // compte les modifs locales (pour repérer celles faites pendant une synchro)
+let saveFailed = false;
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(state)); saveFailed = false; return true; }
+  catch (e) { console.warn('save failed', e); saveFailed = true; return false; }
+}
 function persist(fromSync = false) {
-  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { console.warn('save failed', e); }
+  // dirty : il reste des modifs locales à envoyer sur le Drive
+  if (!fromSync) { changes++; state.meta = { ...state.meta, dirty: true }; }
+  save();
   listeners.forEach((fn) => fn({ fromSync }));
 }
+export const changeCount = () => changes;
+// true si le téléphone n'a pas pu enregistrer (stockage plein) : les données ne survivraient pas à une fermeture
+export const storageFull = () => saveFailed;
 
 export function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -94,6 +107,14 @@ export function setProfile(profile) {
 }
 export function setGoals(goals) {
   state.goals = { ...goals, updatedAt: Date.now() };
+  persist();
+}
+
+/* ---------- Réglages choisis (thème, IA utilisée) ---------- */
+export function setPrefs(patch) {
+  const prev = state.prefs || {};
+  if (Object.entries(patch).every(([k, v]) => prev[k] === v)) return;
+  state.prefs = { ...prev, ...patch, updatedAt: Date.now() };
   persist();
 }
 
@@ -259,7 +280,7 @@ export function recipeAsFood(r) {
 /* ---------- Sync helpers ---------- */
 export function setMeta(patch) {
   state.meta = { ...state.meta, ...patch };
-  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+  save();
 }
 
 export function exportData() {
@@ -285,8 +306,26 @@ export function merge(a, b) {
     recipes: prune(mergeMap(a.recipes, b.recipes)),
     weights: prune(mergeMap(a.weights, b.weights)),
     mealSlots: pick(a.mealSlots, b.mealSlots),
+    prefs: pick(a.prefs, b.prefs),
     meta: a.meta,
   };
+}
+
+// Les parties synchronisées (tout sauf `meta`, propre à l'appareil)
+const SINGLES = ['profile', 'goals', 'mealSlots', 'prefs'];
+const MAPS = ['entries', 'foods', 'recipes', 'weights'];
+// true si deux jeux de données contiennent exactement les mêmes versions de chaque élément
+export function sameData(a, b) {
+  if (!a || !b) return false;
+  const stamp = (x) => (x ? `${x.updatedAt || 0}:${x.deleted ? 1 : 0}` : '');
+  for (const k of SINGLES) if (stamp(a[k]) !== stamp(b[k])) return false;
+  for (const k of MAPS) {
+    const m1 = a[k] || {}, m2 = b[k] || {};
+    const keys = Object.keys(m1);
+    if (keys.length !== Object.keys(m2).length) return false;
+    for (const id of keys) if (stamp(m1[id]) !== stamp(m2[id])) return false;
+  }
+  return true;
 }
 
 // Supprime les pierres tombales de plus de 90 jours

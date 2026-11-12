@@ -1,6 +1,6 @@
 // Options : apparence, IA, synchro, sauvegarde
 import { esc, icons, toast, $, askConfirm, askDataChoice } from '../ui.js';
-import { getState, exportData, importData, resetAll, MEALS, MEAL_PRESETS, setMealSlots, uid } from '../store.js';
+import { getState, exportData, importData, resetAll, MEALS, MEAL_PRESETS, setMealSlots, setPrefs, uid } from '../store.js';
 import * as drive from '../drive.js';
 import { getThemePref, setThemePref } from '../fx.js';
 import { PROVIDERS, getKey, setKey, testKey, getProvider, setProvider } from '../ai.js';
@@ -153,6 +153,7 @@ export function renderSettings(root, ui, nav) {
 
   root.querySelectorAll('[data-theme]').forEach((b) => (b.onclick = () => {
     setThemePref(b.dataset.theme);
+    setPrefs({ theme: b.dataset.theme });
     root.querySelectorAll('[data-theme]').forEach((x) => { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', x === b); });
   }));
 
