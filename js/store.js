@@ -1,4 +1,4 @@
-// Stockage local + fusion (pour la synchro entre appareils)
+// Données de l'appli : en mémoire, enregistrées sur l'appareil, + fusion (pour la synchro entre appareils)
 const KEY = 'qal:v1';
 const listeners = new Set();
 
@@ -63,25 +63,76 @@ const empty = () => ({
   meta: { deviceId: uid(), createdAt: Date.now() },
 });
 
-let state = load();
-syncMeals();
-
-function load() {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return empty();
-    const s = JSON.parse(raw);
-    return { ...empty(), ...s, meta: { ...empty().meta, ...(s.meta || {}) } };
-  } catch {
-    return empty();
-  }
+/* ---------- Stockage sur l'appareil ---------- */
+// IndexedDB : pas de limite à 5 Mo comme localStorage (un an de journal + des photos de recettes
+// la dépasse). localStorage ne sert plus que de secours si IndexedDB est indisponible.
+let db = null;
+function openDb() {
+  return new Promise((resolve) => {
+    let done = false;
+    const end = (v) => { if (!done) { done = true; resolve(v); } };
+    setTimeout(() => end(null), 4000); // certains navigateurs ne répondent jamais : on n'attend pas indéfiniment
+    try {
+      const req = indexedDB.open('qal', 1);
+      req.onupgradeneeded = () => req.result.createObjectStore('kv');
+      req.onsuccess = () => { if (done) req.result.close(); else end(req.result); };
+      req.onerror = req.onblocked = () => end(null);
+    } catch { end(null); }
+  });
 }
+function dbGet(key) {
+  return new Promise((resolve, reject) => {
+    try {
+      const r = db.transaction('kv').objectStore('kv').get(key);
+      r.onsuccess = () => resolve(r.result ?? null);
+      r.onerror = () => reject(r.error);
+    } catch (e) { reject(e); }
+  });
+}
+// La copie des données est prise au moment de l'appel : les modifs suivantes ne s'y mélangent pas
+function dbPut(key, value) {
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction('kv', 'readwrite');
+      tx.objectStore('kv').put(value, key);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = tx.onabort = () => resolve(false);
+    } catch { resolve(false); }
+  });
+}
+function readLocal() {
+  try { const raw = localStorage.getItem(KEY); return raw ? JSON.parse(raw) : null; } catch { return null; }
+}
+
+async function load() {
+  const old = readLocal(); // données d'avant IndexedDB, ou écrites en secours
+  let s = old;
+  db = typeof indexedDB !== 'undefined' ? await openDb() : null;
+  if (db) {
+    try {
+      const saved = await dbGet('state');
+      // les deux existent (une session en secours a écrit dans localStorage) : on ne perd rien, le plus récent gagne
+      s = saved && old ? { ...merge(saved, old), meta: { ...saved.meta, ...(old.meta || {}), dirty: true } } : saved || old;
+      if (old) {
+        // on déménage vers IndexedDB ; localStorage n'est vidé qu'une fois la copie bien écrite
+        if (await dbPut('state', s)) { try { localStorage.removeItem(KEY); } catch {} }
+        else { db = null; s = old; }
+      }
+    } catch (e) { console.warn('indexeddb', e); db = null; s = old; }
+  }
+  if (!s) return empty();
+  return { ...empty(), ...s, meta: { ...empty().meta, ...(s.meta || {}) } };
+}
+
+let state = await load();
+syncMeals();
 
 let changes = 0;      // compte les modifs locales (pour repérer celles faites pendant une synchro)
 let saveFailed = false;
 function save() {
-  try { localStorage.setItem(KEY, JSON.stringify(state)); saveFailed = false; return true; }
-  catch (e) { console.warn('save failed', e); saveFailed = true; return false; }
+  if (db) { dbPut('state', state).then((ok) => { saveFailed = !ok; if (!ok) console.warn('save failed'); }); return; }
+  try { localStorage.setItem(KEY, JSON.stringify(state)); saveFailed = false; }
+  catch (e) { console.warn('save failed', e); saveFailed = true; }
 }
 function persist(fromSync = false) {
   // dirty : il reste des modifs locales à envoyer sur le Drive

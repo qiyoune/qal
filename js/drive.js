@@ -1,11 +1,12 @@
 // Synchro via le dossier caché "appDataFolder" du Google Drive de l'utilisateur.
 // Les données ne passent par aucun serveur à toi : elles vont directement du téléphone au Drive.
-import { GOOGLE_CLIENT_ID } from './config.js';
+import { GOOGLE_CLIENT_ID, GOOGLE_AUTH_PROXY } from './config.js';
 import { getState, merge, replaceState, setMeta, sameData, changeCount } from './store.js';
 
 const SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 const FILE_NAME = 'qal-data.json';
-const TOKEN_KEY = 'qal:gtoken';
+const TOKEN_KEY = 'qal:gtoken';     // jeton d'accès (valable 1 h)
+const REFRESH_KEY = 'qal:grefresh'; // jeton de renouvellement (avec le relais : connexion permanente)
 const API = 'https://www.googleapis.com';
 
 let tokenClient = null;
@@ -37,19 +38,65 @@ function savedToken() {
   return null;
 }
 
-export const hasValidToken = () => !!savedToken();
+const PROXY = (GOOGLE_AUTH_PROXY || '').replace(/\/+$/, '');
+const refreshToken = () => { try { return (PROXY && localStorage.getItem(REFRESH_KEY)) || ''; } catch { return ''; } };
+function storeToken(resp) {
+  localStorage.setItem(TOKEN_KEY, JSON.stringify({ token: resp.access_token, exp: Date.now() + (resp.expires_in || 3600) * 1000 }));
+  if (resp.refresh_token) localStorage.setItem(REFRESH_KEY, resp.refresh_token);
+}
+const authError = () => { const e = new Error('auth'); e.auth = true; return e; };
+const proxyPost = (path, body) => fetch(PROXY + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+
+// true si on peut parler au Drive sans rien demander : jeton encore valable, ou renouvelable par le relais
+export const hasValidToken = () => !!savedToken() || !!refreshToken();
+
+// Le jeton d'accès ; s'il a expiré, le relais en redonne un tout seul
+let refreshing = null;
+async function accessToken() {
+  const t = savedToken();
+  if (t) return t;
+  const rt = refreshToken();
+  if (!rt) throw authError();
+  refreshing ||= (async () => {
+    const r = await proxyPost('/refresh', { refresh_token: rt });
+    if (r.status === 401) { localStorage.removeItem(REFRESH_KEY); throw authError(); } // accès retiré côté Google
+    if (!r.ok) throw new Error('relais ' + r.status);
+    storeToken(await r.json());
+    return savedToken();
+  })().finally(() => { refreshing = null; });
+  return refreshing;
+}
 
 // Doit être appelé suite à un tap (sinon Safari bloque la fenêtre Google)
 export async function connect({ silent = false } = {}) {
   if (!isConfigured()) throw new Error('Client Google non configuré (voir README)');
   await loadGis();
+  // Avec le relais : Google donne un code, le relais l'échange contre un accès permanent
+  if (PROXY) return new Promise((resolve, reject) => {
+    google.accounts.oauth2.initCodeClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: SCOPE,
+      ux_mode: 'popup',
+      callback: async (resp) => {
+        if (resp.error || !resp.code) return reject(new Error(resp.error || 'access_denied'));
+        try {
+          const r = await proxyPost('/token', { code: resp.code });
+          if (!r.ok) throw new Error('relais ' + r.status);
+          const d = await r.json();
+          storeToken(d);
+          resolve(d.access_token);
+        } catch (e) { reject(e); }
+      },
+      error_callback: (err) => reject(new Error(err?.type || 'popup_failed')),
+    }).requestCode();
+  });
   return new Promise((resolve, reject) => {
     tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: GOOGLE_CLIENT_ID,
       scope: SCOPE,
       callback: (resp) => {
         if (resp.error) return reject(new Error(resp.error));
-        localStorage.setItem(TOKEN_KEY, JSON.stringify({ token: resp.access_token, exp: Date.now() + (resp.expires_in || 3600) * 1000 }));
+        storeToken(resp);
         resolve(resp.access_token);
       },
       error_callback: (err) => reject(new Error(err?.type || 'popup_failed')),
@@ -59,17 +106,23 @@ export async function connect({ silent = false } = {}) {
 }
 
 export function disconnect() {
+  // Avec le relais, on oublie simplement les jetons de CET appareil : les révoquer chez Google
+  // déconnecterait aussi tes autres appareils.
   const t = savedToken();
-  if (t && window.google?.accounts?.oauth2) google.accounts.oauth2.revoke(t, () => {});
+  if (!PROXY && t && window.google?.accounts?.oauth2) google.accounts.oauth2.revoke(t, () => {});
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(REFRESH_KEY);
   setMeta({ driveConnected: false, lastSync: null, remoteStamp: null });
 }
 
-async function api(path, opts = {}) {
-  const token = savedToken();
-  if (!token) { const e = new Error('auth'); e.auth = true; throw e; }
+async function api(path, opts = {}, retry = true) {
+  const token = await accessToken();
   const r = await fetch(API + path, { ...opts, headers: { Authorization: 'Bearer ' + token, ...(opts.headers || {}) } });
-  if (r.status === 401) { localStorage.removeItem(TOKEN_KEY); const e = new Error('auth'); e.auth = true; throw e; }
+  if (r.status === 401) {
+    localStorage.removeItem(TOKEN_KEY);
+    if (retry && refreshToken()) return api(path, opts, false); // jeton refusé : on en redemande un au relais, une fois
+    throw authError();
+  }
   if (!r.ok) throw new Error('drive ' + r.status);
   return r;
 }
