@@ -5,7 +5,7 @@ export const GOOGLE_CLIENT_ID = '1079120100702-hqtum8ppo8qrqgk2s1qdtp6m1rvncjfp.
 // Relais de connexion Google (Cloudflare Worker, voir worker/google-auth.js et worker/README.md).
 // Vide = Google ne donne qu'un accès d'1 h : la synchro se met en pause et il faut toucher la pastille.
 // Rempli = l'appli reste connectée en permanence.
-export const GOOGLE_AUTH_PROXY = '';
+export const GOOGLE_AUTH_PROXY = 'https://qal-auth.youneslallart.workers.dev';
 
 // Adresse de ton "proxy IA" (ex : un Cloudflare Worker, voir worker/README.md).
 // Vide = le chat fonctionne en mode hors ligne (il répond avec tes chiffres du jour).

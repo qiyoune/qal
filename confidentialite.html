@@ -28,7 +28,7 @@
 <main>
   <h1>confidentialite <span>✦</span></h1>
   <p class="date">Dernière mise à jour : 16 octobre 2026</p>
-  <p class="lead">En bref : qal n'a pas de serveur. Tes données restent sur ton téléphone et, si tu le choisis, dans ton propre Google Drive. Personne d'autre n'y a accès, pas même le créateur de l'appli.</p>
+  <p class="lead">En bref : qal ne garde tes données sur aucun serveur. Tes données restent sur ton téléphone et, si tu le choisis, dans ton propre Google Drive. Personne d'autre n'y a accès, pas même le créateur de l'appli.</p>
 
   <section>
     <h2>Ce que l'appli enregistre</h2>
@@ -41,6 +41,7 @@
     <ul>
       <li>qal ne voit ni ne lit aucun autre fichier de ton Drive.</li>
       <li>qal n'accède ni à tes e-mails, ni à tes contacts, ni à ton nom.</li>
+      <li>Pour que tu restes connecté sans avoir à te reconnecter toutes les heures, la connexion à Google passe par un petit relais (Cloudflare Worker). Il ne fait que transmettre la demande de connexion à Google : il ne garde rien et ne voit jamais le contenu de ton Drive.</li>
       <li>Tu peux te déconnecter à tout moment dans Options, et supprimer les données de l'appli depuis les paramètres de ton Google Drive (Gérer les applications).</li>
     </ul>
     <p>L'utilisation des données reçues des API Google respecte les <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener">règles relatives aux données utilisateur des services API Google</a>, y compris les exigences d'utilisation limitée.</p>
